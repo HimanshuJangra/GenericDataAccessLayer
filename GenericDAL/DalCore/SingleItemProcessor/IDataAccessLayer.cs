@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using SharedComponents.Data;
-using SharedDal.DatabaseAccess;
+using DalCore.DatabaseAccess;
 
-namespace SharedDal.SingleItemProcessor
+namespace DalCore.SingleItemProcessor
 {
     /// <summary>
     /// Depenends on Implementation can use Single Statement Execution (SSE) for CRUD or
@@ -50,7 +50,7 @@ namespace SharedDal.SingleItemProcessor
         /// </summary>
         /// <param name="reader">Datareader that allow read from Stream</param>
         /// <returns>Current DC</returns>
-        IDataTransferObject Get(System.Data.IDataReader reader);
+        IDataTransferObject Get(System.Data.IDataRecord reader);
 
         /// <summary>
         /// A datareader that allow to get specific Entity information and save it into an object
@@ -60,11 +60,18 @@ namespace SharedDal.SingleItemProcessor
         void Get(IDataTransferObject item, System.Data.IDataReader reader);
 
         /// <summary>
-        /// Save Entity
+        /// Save Entity, only create or update
         /// </summary>
         /// <param name="item">data for add or update</param>
         /// <returns>True, if succes</returns>
         Boolean Save(IDataTransferObject item);
+
+        /// <summary>
+        /// Save full list of the Transfer objects
+        /// </summary>
+        /// <param name="data">Transfer data to save</param>
+        void Save(IEnumerable<IDataTransferObject> data);
+
 
         /// <summary>
         /// Get all data from table
@@ -99,7 +106,7 @@ namespace SharedDal.SingleItemProcessor
         /// <param name="items">List that will contain the data</param>
         /// <param name="generator">Read data from query and return it for items list</param>
         /// <param name="reader">Data Accessor</param>
-        void Read<TGeneric>(IList<TGeneric> items, Func<System.Data.IDataReader, TGeneric> generator, System.Data.IDataReader reader);
+        void Read<TGeneric>(IList<TGeneric> items, Func<System.Data.IDataRecord, TGeneric> generator, System.Data.IDataReader reader);
 
         #region CRUD
 

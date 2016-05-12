@@ -2,13 +2,11 @@
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using SharedComponents.Data;
-using SharedDal.DatabaseAccess;
-using SharedDal.SingleItemProcessor;
+using DalCore.DatabaseAccess;
+using Localization = L10n.Properties.Resources;
 
-namespace DalCore
+namespace DalCore.SingleItemProcessor
 {
     public abstract class DalBase<T> : BasicDbAccess, IDataAccessLayer
            where T : class, IDataTransferObject, new()
@@ -28,10 +26,10 @@ namespace DalCore
         {
         }
         /// <summary>
-        /// Use DAK with disconnected Configuration.
+        /// Use DAL with disconnected Configuration.
         /// </summary>
-        /// <param name="connectionString"></param>
-        /// <param name="providerName"></param>
+        /// <param name="connectionString">manual connection String</param>
+        /// <param name="providerName">name of the SQL Server provider</param>
         public DalBase(String connectionString, String providerName) : base(connectionString, providerName)
         {
         }
@@ -43,11 +41,11 @@ namespace DalCore
         /// <param name="items">List that will contain the data</param>
         /// <param name="generator">Read data from query and return it for items list</param>
         /// <param name="reader">Data Accessor</param>
-        public void Read<TGeneric>(IList<TGeneric> items, Func<IDataReader, TGeneric> generator, IDataReader reader)
+        public void Read<TGeneric>(IList<TGeneric> items, Func<IDataRecord, TGeneric> generator, IDataReader reader)
         {
-            while (reader.Read() == true)
+            foreach (var record in reader.ToRecord())
             {
-                items.Add(generator(reader));
+                items.Add(generator(record));
             }
         }
 
@@ -65,12 +63,12 @@ namespace DalCore
             using (IDbCommand command = connection.CreateCommand())
             {
                 this.OutputParameters.Clear();
-                command.CommandType = System.Data.CommandType.StoredProcedure;
+                command.CommandType = CommandType.StoredProcedure;
                 command.CommandText = this.Operations[operation];
                 this.FillParameter(item, command, operation);
                 command.Prepare();
                 result = execute(item, command);
-                this.OutputParameters.AddRange(command.Parameters.OfType<IDbDataParameter>().Where(a => a.Direction != System.Data.ParameterDirection.Input));
+                this.OutputParameters.AddRange(command.Parameters.OfType<IDbDataParameter>().Where(a => a.Direction != ParameterDirection.Input));
             }
 
             return result;
@@ -89,10 +87,10 @@ namespace DalCore
             using (IDbCommand command = connection.CreateCommand())
             {
                 this.OutputParameters.Clear();
-                command.CommandType = System.Data.CommandType.StoredProcedure;
+                command.CommandType = CommandType.StoredProcedure;
                 command.CommandText = this.Operations[operation];
                 result = execute(item, command);
-                this.OutputParameters.AddRange(command.Parameters.OfType<IDbDataParameter>().Where(a => a.Direction != System.Data.ParameterDirection.Input));
+                this.OutputParameters.AddRange(command.Parameters.OfType<IDbDataParameter>().Where(a => a.Direction != ParameterDirection.Input));
             }
 
             return result;
@@ -109,9 +107,9 @@ namespace DalCore
             using (IDbCommand command = connection.CreateCommand())
             {
                 this.OutputParameters.Clear();
-                command.CommandType = System.Data.CommandType.StoredProcedure;
+                command.CommandType = CommandType.StoredProcedure;
                 execute(data, command);
-                this.OutputParameters.AddRange(command.Parameters.OfType<IDbDataParameter>().Where(a => a.Direction != System.Data.ParameterDirection.Input));
+                this.OutputParameters.AddRange(command.Parameters.OfType<IDbDataParameter>().Where(a => a.Direction != ParameterDirection.Input));
             }
         }
         /// <summary>
@@ -126,9 +124,9 @@ namespace DalCore
             using (IDbCommand command = connection.CreateCommand())
             {
                 this.OutputParameters.Clear();
-                command.CommandType = System.Data.CommandType.StoredProcedure;
+                command.CommandType = CommandType.StoredProcedure;
                 result = execute(item, command);
-                this.OutputParameters.AddRange(command.Parameters.OfType<IDbDataParameter>().Where(a => a.Direction != System.Data.ParameterDirection.Input));
+                this.OutputParameters.AddRange(command.Parameters.OfType<IDbDataParameter>().Where(a => a.Direction != ParameterDirection.Input));
             }
 
             return result;
@@ -147,35 +145,76 @@ namespace DalCore
         /// <summary>
         /// Name of the Entity
         /// </summary>
-        public string EntityName => typeof(T).Name;
+        public virtual string EntityName => typeof(T).Name;
         #region Generic implementation
 
         public abstract void FillParameter(T item, IDbCommand command, DefaulDatabaseOperation operation);
 
-        public abstract T Get(IDataReader reader);
+        public abstract T Get(IDataRecord record);
 
-        public abstract void Get(T item, IDataReader reader);
+        public abstract void Get(T item, IDataRecord reader);
 
-        public Boolean AddOrUpdate(T item, Boolean forceAdd = false)
+        /// <summary>
+        /// Save Entity, only create or update
+        /// </summary>
+        /// <param name="item">data for add or update</param>
+        /// <returns>True, if succes</returns>
+        public Boolean Save(T item)
         {
-            Boolean Result = true;
+            Boolean result = true;
             if (item != null)
             {
-                if (item.HasPrimaryKey == true && forceAdd == false)
-                {
-                    Result = this.Update(item) > 0;
-                }
-
-                if (item.HasPrimaryKey == false || forceAdd == true)
-                {
-                    Result = this.Create(item) > 0;
-                }
+                Func<T, IDbCommand, int> save = this.Save;
+                result = this.Execute(save, item) > 0;
+            }
+            else
+            {
+                throw new ArgumentNullException(nameof(Localization.DE001));
             }
 
-            return Result;
+            return result;
         }
 
+        /// <summary>
+        /// Save Entity using rowstate
+        /// </summary>
+        /// <param name="item">item to modify</param>
+        /// <param name="command">Command to (re)use</param>
+        /// <returns> greater than zeor, if succes</returns>
+        public int Save(T item, IDbCommand command)
+        {
+            int result = -1;
+            if (item.RowState == DataRowState.Added)
+            {
+                command.CommandText = this.Operations[DefaulDatabaseOperation.Create];
+                result = this.Create(item, command);
+            }
+            else if (item.RowState == DataRowState.Deleted)
+            {
+                command.CommandText = this.Operations[DefaulDatabaseOperation.Delete];
+                result = this.Delete(item, command);
+            }
+            else if (item.RowState == DataRowState.Modified)
+            {
+                command.CommandText = this.Operations[DefaulDatabaseOperation.Update];
+                result = this.Update(item, command);
+            }
 
+            return result;
+        }
+        public void Save(List<T> data)
+        {
+            Action<List<T>, IDbCommand> save = this.Save;
+            this.Execute(save, data);
+        }
+
+        public void Save(List<T> data, IDbCommand command)
+        {
+            foreach (var item in data)
+            {
+                this.Save(item, command);
+            }
+        }
 
         /// <summary>
         /// Write into given list all Items
@@ -191,6 +230,7 @@ namespace DalCore
         /// </summary>
         /// <param name="items">Empty (?) list for Items</param>
         /// <param name="command">Existing Command to use</param>
+        /// <returns>Affected rows</returns>
         public int Read(List<T> items, IDbCommand command)
         {
             int count = 0;
@@ -207,21 +247,37 @@ namespace DalCore
         /// Get one entry from db using current Entity as keyholder
         /// </summary>
         /// <param name="keyHolder">Object that contains primary keys for the Stored procedure</param>
+        /// <returns>Affected rows</returns>
         public int Get(T keyHolder)
         {
             return this.Execute(this.Get, keyHolder, DefaulDatabaseOperation.Get);
         }
-
+        /// <summary>
+        /// Get one entry from db using current Entity as keyholder and existing command
+        /// </summary>
+        /// <param name="keyHolder">Object that holds the key</param>
+        /// <param name="command">command to use</param>
+        /// <returns>Affected rows</returns>
         public int Get(T keyHolder, IDbCommand command)
         {
             return command.GetFirstRow(this.Get, keyHolder);
         }
-
+        /// <summary>
+        /// Create new Entry in database for given entity
+        /// </summary>
+        /// <param name="item">Item that keep the entries for a row</param>
+        /// <returns>Affected rows</returns>
         public int Create(T item)
         {
             return this.Execute(this.Create, item, DefaulDatabaseOperation.Create);
         }
 
+        /// <summary>
+        /// Create new Entry in database for given entity and command
+        /// </summary>
+        /// <param name="item">Item that keep the entries for a row</param>
+        /// <param name="command">command to use</param>
+        /// <returns>Affected rows</returns>
         public int Create(T item, IDbCommand command)
         {
             return command.GetFirstRow(this.Get, item);
@@ -246,7 +302,7 @@ namespace DalCore
         {
             return command.ExecuteNonQuery();
         }
-
+        
         #endregion
 
 
@@ -268,7 +324,7 @@ namespace DalCore
         /// </summary>
         /// <param name="reader">Datareader that allow read from Stream</param>
         /// <returns>Current DC</returns>
-        IDataTransferObject IDataAccessLayer.Get(IDataReader reader)
+        IDataTransferObject IDataAccessLayer.Get(IDataRecord reader)
         {
             return this.Get(reader);
         }
@@ -277,11 +333,10 @@ namespace DalCore
         /// Save Entity
         /// </summary>
         /// <param name="item">data for add or update</param>
-        /// <param name="forceAdd">if true, data will be created and not updated</param>
         /// <returns>True, if succes</returns>
         bool IDataAccessLayer.Save(IDataTransferObject item)
         {
-            return this.AddOrUpdate(item as T);
+            return this.Save(item as T);
         }
 
         /// <summary>
@@ -385,6 +440,15 @@ namespace DalCore
         int IDataAccessLayer.Delete(IDataTransferObject item, IDbCommand command)
         {
             return this.Delete(item as T, command);
+        }
+
+        /// <summary>
+        /// Save full list of the Transfer objects
+        /// </summary>
+        /// <param name="data">Transfer data to save</param>
+        void IDataAccessLayer.Save(IEnumerable<IDataTransferObject> data)
+        {
+            this.Save(data as List<T>);
         }
 
         #endregion

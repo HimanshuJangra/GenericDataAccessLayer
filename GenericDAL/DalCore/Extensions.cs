@@ -2,12 +2,13 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Data;
+using System.Data.Common;
 using System.Linq;
 using SharedComponents.Data;
-using SharedDal.SingleItemProcessor;
+using DalCore.SingleItemProcessor;
 using Localization = L10n.Properties.Resources;
 
-namespace SharedDal
+namespace DalCore
 {
     /// <summary>
     /// Some usefull database and dal extensions
@@ -42,8 +43,15 @@ namespace SharedDal
 
             return parameter;
         }
-
-        public static T ReadObject<T>(this IDataReader reader, int ordinal, T defaultValue = default(T))
+        /// <summary>
+        /// Get Value from Reader and convert it into Type given by generic parameter
+        /// </summary>
+        /// <typeparam name="T">Type of the Column value</typeparam>
+        /// <param name="reader">Reader that we use to retrieve data</param>
+        /// <param name="ordinal">Column Number</param>
+        /// <param name="defaultValue">default Value if reader value is DbNull</param>
+        /// <returns>Column value</returns>
+        public static T ReadObject<T>(this IDataRecord reader, int ordinal, T defaultValue = default(T))
         {
             T result = defaultValue;
             try
@@ -53,15 +61,22 @@ namespace SharedDal
                     result = (T)reader.GetValue(ordinal);
                 }
             }
-            catch (Exception e)
+            catch
             {
-                throw new Exception(String.Format(Localization.DataReaderColumnException, ordinal), e);
+                throw new ArgumentOutOfRangeException(nameof(reader), ordinal, nameof(Localization.CE001));
             }
 
             return result;
         }
-
-        public static T ReadObject<T>(this IDataReader reader, String columnName, T defaultValue = default(T))
+        /// <summary>
+        /// Get Value from Reader and convert it into Type given by generic parameter using column name
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="reader"></param>
+        /// <param name="columnName"></param>
+        /// <param name="defaultValue"></param>
+        /// <returns></returns>
+        public static T ReadObject<T>(this IDataRecord reader, String columnName, T defaultValue = default(T))
         {
             int ordinal = reader.GetOrdinal(columnName);
             return reader.ReadObject<T>(ordinal, defaultValue);
@@ -81,83 +96,98 @@ namespace SharedDal
             return column;
         }
 
-        public static void IntoList<T>(this IDbCommand command, Func<IDataReader, T> getter, List<T> result)
+        public static void IntoList<T>(this IDbCommand command, Func<IDataRecord, T> getter, List<T> result)
         {
             using (var reader = command.ExecuteReader())
             {
-                while (reader.Read() == true)
-                {
-                    result.Add(getter(reader));
-                }
+                result.AddRange(reader.ToRecord().Select(record => getter(record)));
             }
         }
         
-        public static void IntoList<T>(this List<T> result, IDataReader reader, Action<T, IDataReader> eachItem = null)
+        public static void IntoList<T>(this List<T> result, IDataReader reader, Action<T, IDataRecord> eachItem)
             where T : class, IDataTransferObject
         {
             var dal = FastAccess.Instance.GetDal<T>();
-            while (reader.Read() == true)
+            foreach (var record in reader.ToRecord())
             {
-                T item = (T)dal.Get(reader);
-                if (eachItem != null)
-                {
-                    eachItem(item, reader);
-                }
+                T item = (T)dal.Get(record);
+                eachItem(item, record);
                 result.Add(item);
             }
         }
+        /// <summary>
+        /// Create DbEnumerator and returns IDataRecord for each iteration.
+        /// DbEnumerator is a bit faster then IDataReader... using cache for column names
+        /// </summary>
+        /// <param name="reader">Reader to use</param>
+        /// <returns>Enumerable Data Records</returns>
+        public static IEnumerable<IDataRecord> ToRecord(this IDataReader reader)
+        {
+            var enumerator = new DbEnumerator(reader);
+            while (enumerator.MoveNext() == true)
+            {
+                yield return (IDataRecord)enumerator.Current;
+            }
+        }
 
-        public static int GetFirstRow<T>(this IDbCommand command, Action<T, IDataReader> getter, T data)
+        public static int GetFirstRow<T>(this IDbCommand command, Action<T, IDataRecord> getter, T data)
         {
             int result;
             using (var reader = command.ExecuteReader())
             {
-                while (reader.Read() == true)
+                foreach(var record in reader.ToRecord())
                 {
-                    getter(data, reader);
+                    getter(data, record);
                 }
                 result = reader.RecordsAffected;
             }
             return result;
         }
 
-        public static T GetFirstRow<T>(this IDbCommand command, Func<IDataReader, T> getter)
+        public static T GetFirstRow<T>(this IDbCommand command, Func<IDataRecord, T> getter)
         {
             T result = default(T);
             using (var reader = command.ExecuteReader())
             {
-                if (reader.Read() == true)
+                foreach (var record in reader.ToRecord())
                 {
-                    result = getter(reader);
+                    result = getter(record);
                 }
             }
             return result;
         }
 
-        public static void Update<T>(this IDbCommand command, T item, Action<T, IDataReader> getter)
+        public static void Update<T>(this IDbCommand command, T item, Action<T, IDataRecord> getter)
         {
             using (var reader = command.ExecuteReader())
             {
-                if (reader.Read() == true)
+                foreach (var record in reader.ToRecord())
                 {
-                    getter(item, reader);
+                    getter(item, record);
                 }
             }
         }
 
-        public static void Update<T>(this IDbCommand command, List<T> items, Action<T, IDataReader> getter, String indexName)
+        public static void Update<T>(this IDbCommand command, List<T> items, Action<T, IDataRecord> getter, String indexName)
         {
             using (var reader = command.ExecuteReader())
             {
-                while (reader.Read() == true)
+                foreach (var record in reader.ToRecord())
                 {
-                    int index = reader.ReadObject<int>(indexName);
-                    getter(items[index], reader);
+                    int index = record.ReadObject<int>(indexName);
+                    getter(items[index], record);
                 }
             }
         }
 
         public static void Save<T>(this T data)
+            where T : class, IDataTransferObject
+        {
+            var instance = FastAccess.Instance.GetDal<T>();
+            instance.Save(data);
+        }
+
+        public static void Save<T>(this List<T> data)
             where T : class, IDataTransferObject
         {
             var instance = FastAccess.Instance.GetDal<T>();

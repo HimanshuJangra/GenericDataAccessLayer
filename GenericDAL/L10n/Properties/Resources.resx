@@ -117,10 +117,19 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
-  <data name="DataReaderColumnException" xml:space="preserve">
+  <data name="CE001" xml:space="preserve">
     <value>Could not get data from Column {0}</value>
   </data>
-  <data name="FastAccessNoCatalogSelected" xml:space="preserve">
+  <data name="DE001" xml:space="preserve">
+    <value>Processing data have no instance</value>
+  </data>
+  <data name="DE002" xml:space="preserve">
+    <value>Different connections are in use</value>
+  </data>
+  <data name="GE001" xml:space="preserve">
     <value>No import catalogs exists. Cannot create fast access for Data Access Layer</value>
+  </data>
+  <data name="GE002" xml:space="preserve">
+    <value>Could not load instance for {0} data transfer object</value>
   </data>
 </root>

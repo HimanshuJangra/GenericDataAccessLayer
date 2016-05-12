@@ -5,11 +5,12 @@ using System.ComponentModel.Composition.Hosting;
 using System.ComponentModel.Composition.Primitives;
 using System.Linq;
 using System.Reflection;
-using SharedDal.DatabaseAccess;
-using SharedDal.SingleItemProcessor;
+using DalCore.DatabaseAccess;
+using DalCore.SingleItemProcessor;
 using Localization = L10n.Properties.Resources;
+using SharedComponents;
 
-namespace SharedDal
+namespace DalCore
 {
     /// <summary>
     /// Allow Import all existing Data Access Layers
@@ -44,6 +45,7 @@ namespace SharedDal
             {
                 Instance.DictionaryCatalogPath = importDirectory;
                 Instance.Assemblies = assemblies;
+                Instance.Initialize();
             }
 
             return Instance;
@@ -75,13 +77,19 @@ namespace SharedDal
 
             if (catalogs.Count == 0)
             {
-                throw new IndexOutOfRangeException(Localization.FastAccessNoCatalogSelected);
+                throw new IndexOutOfRangeException(nameof(Localization.GE001));
             }
 
             var catalog = new AggregateCatalog(catalogs);
             var container = new CompositionContainer(catalog, true);
             container.ComposeParts(this);
         }
+
+        /// <summary>
+        /// Load default implementation for logger
+        /// </summary>
+        [ImportMany] public IEnumerable<ILogger> DefaultLoggers;
+
         /// <summary>
         /// Get Data Access Layer as Interface
         /// </summary>
@@ -90,21 +98,32 @@ namespace SharedDal
         public IDataAccessLayer GetDal<T>()
             where T : SharedComponents.Data.IDataTransferObject
         {
-            return this._plugins?.FirstOrDefault(a => a.Metadata.ParameterType == typeof(T))?.Value;
+            var dal = this._plugins?.FirstOrDefault(a => a.Metadata.ParameterType == typeof(T))?.Value;
+            if (dal == null)
+            {
+                throw new ArgumentNullException(typeof(T).Name, nameof(Localization.GE002));
+            }
+            return dal;
         }
 
         /// <summary>
         /// Get Data Access Layer already casted to a specific Type
         /// </summary>
-        /// <typeparam name="TDto"></typeparam>
-        /// <typeparam name="TDal"></typeparam>
+        /// <typeparam name="TDal">Concrete Data Access Layer Definition</typeparam>
         /// <returns></returns>
         public TDal GetConcreteDal<TDal>()
             where TDal : IDataAccessLayer
         {
-            return (TDal)this._plugins.FirstOrDefault(a => a.Metadata.ConcreteType == typeof(TDal))?.Value;
+            var dal = (TDal)this._plugins.FirstOrDefault(a => a.Metadata.ConcreteType == typeof(TDal))?.Value;
+            if (dal == null)
+            {
+                throw new ArgumentNullException(typeof(TDal).Name, nameof(Localization.GE002));
+            }
+            return dal;
         }
-
+        /// <summary>
+        /// load all data access layers
+        /// </summary>
         [ImportMany]
         private IEnumerable<Lazy<IDataAccessLayer, ITypeAccessor>> _plugins;
     }

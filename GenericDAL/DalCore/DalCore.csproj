@@ -32,6 +32,7 @@
   <ItemGroup>
     <Reference Include="System" />
     <Reference Include="System.ComponentModel.Composition" />
+    <Reference Include="System.Configuration" />
     <Reference Include="System.Core" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
@@ -47,8 +48,16 @@
     <Compile Include="..\SharedAssemblyInfo.cs">
       <Link>Properties\SharedAssemblyInfo.cs</Link>
     </Compile>
-    <Compile Include="DalBase.cs" />
+    <Compile Include="BasicDbAccess.cs" />
+    <Compile Include="SingleItemProcessor\DalBase.cs" />
+    <Compile Include="DatabaseAccess\DefaultDatabaseOperation.cs" />
+    <Compile Include="DatabaseAccess\ITypeAccessor.cs" />
+    <Compile Include="Extensions.cs" />
+    <Compile Include="FastAccess.cs" />
+    <Compile Include="DatabaseAccess\IBasicDbAccess.cs" />
+    <Compile Include="MultiItemProcessor\DalBase.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="SingleItemProcessor\IDataAccessLayer.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\L10n\L10n.csproj">
@@ -60,7 +69,7 @@
       <Name>SharedComponents</Name>
     </ProjectReference>
   </ItemGroup>
-  <Import Project="..\SharedDal\SharedDal.projitems" Label="Shared" />
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

@@ -9,13 +9,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SharedComponents", "SharedC
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "L10n", "L10n\L10n.csproj", "{2C9F398F-628B-4E88-8D62-B24061C4D10E}"
 EndProject
-Project("{D954291E-2A0B-460D-934E-DC6B0785DB48}") = "SharedDal", "SharedDal\SharedDal.shproj", "{78D6A52A-2457-437C-BA4D-2A3EA04C6EB5}"
-EndProject
 Global
-	GlobalSection(SharedMSBuildProjectFiles) = preSolution
-		SharedDal\SharedDal.projitems*{42fe85f8-b0f8-40f7-96d2-2a10cddf8d61}*SharedItemsImports = 4
-		SharedDal\SharedDal.projitems*{78d6a52a-2457-437c-ba4d-2a3ea04c6eb5}*SharedItemsImports = 13
-	EndGlobalSection
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
 		Release|Any CPU = Release|Any CPU

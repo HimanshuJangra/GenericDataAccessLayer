@@ -63,18 +63,45 @@ namespace L10n.Properties {
         /// <summary>
         ///   Looks up a localized string similar to Could not get data from Column {0}.
         /// </summary>
-        public static string DataReaderColumnException {
+        public static string CE001 {
             get {
-                return ResourceManager.GetString("DataReaderColumnException", resourceCulture);
+                return ResourceManager.GetString("CE001", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Processing data have no instance.
+        /// </summary>
+        public static string DE001 {
+            get {
+                return ResourceManager.GetString("DE001", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Different connections are in use.
+        /// </summary>
+        public static string DE002 {
+            get {
+                return ResourceManager.GetString("DE002", resourceCulture);
             }
         }
         
         /// <summary>
         ///   Looks up a localized string similar to No import catalogs exists. Cannot create fast access for Data Access Layer.
         /// </summary>
-        public static string FastAccessNoCatalogSelected {
+        public static string GE001 {
             get {
-                return ResourceManager.GetString("FastAccessNoCatalogSelected", resourceCulture);
+                return ResourceManager.GetString("GE001", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Could not load instance for {0} data transfer object.
+        /// </summary>
+        public static string GE002 {
+            get {
+                return ResourceManager.GetString("GE002", resourceCulture);
             }
         }
     }

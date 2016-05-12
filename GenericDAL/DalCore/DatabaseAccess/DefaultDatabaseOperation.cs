@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace SharedDal.DatabaseAccess
+namespace DalCore.DatabaseAccess
 {
     [Flags]
     public enum DefaulDatabaseOperation
