@@ -24,7 +24,20 @@ namespace DalCore
         /// <summary>
         /// Internal Logger
         /// </summary>
-        IEnumerable<ILogger> Logger { get; }
+        IEnumerable<Lazy<ILogger>> Logger { get; }
+
+        /// <summary>
+        /// Refresh disconnected connection
+        /// </summary>
+        /// <param name="providerName">Configuration connection string name</param>
+        void RefreshConnectionSettings(string providerName);
+
+        /// <summary>
+        /// Refresh disconnected connection
+        /// </summary>
+        /// <param name="connectionString">connection string</param>
+        /// <param name="providerName">SQL Provider</param>
+        void RefreshConnectionSettings(String connectionString, String providerName);
 
         /// <summary>
         /// Execute Remote Procedure Call (can be anything that go to database)

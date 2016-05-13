@@ -34,6 +34,7 @@
     <Reference Include="System.ComponentModel.Composition" />
     <Reference Include="System.Configuration" />
     <Reference Include="System.Core" />
+    <Reference Include="System.Runtime.Caching" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="Microsoft.CSharp" />
@@ -49,6 +50,9 @@
       <Link>Properties\SharedAssemblyInfo.cs</Link>
     </Compile>
     <Compile Include="BasicDbAccess.cs" />
+    <Compile Include="DatabaseAccess\DataAccessLayerShared.cs" />
+    <Compile Include="DatabaseAccess\IDataAccessLayerShared.cs" />
+    <Compile Include="DalCoreConfiguration.cs" />
     <Compile Include="SingleItemProcessor\DalBase.cs" />
     <Compile Include="DatabaseAccess\DefaultDatabaseOperation.cs" />
     <Compile Include="DatabaseAccess\ITypeAccessor.cs" />
@@ -69,7 +73,11 @@
       <Name>SharedComponents</Name>
     </ProjectReference>
   </ItemGroup>
-  <ItemGroup />
+  <ItemGroup>
+    <None Include="App.config">
+      <SubType>Designer</SubType>
+    </None>
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

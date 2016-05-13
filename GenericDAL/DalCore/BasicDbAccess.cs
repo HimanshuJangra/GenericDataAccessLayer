@@ -14,16 +14,81 @@ namespace DalCore
     public class BasicDbAccess : IBasicDbAccess
     {
         /// <summary>
+        /// Name of the default Sql Connection String name in config file
+        /// </summary>
+        const string DefaultConnection = "DefaultConnection";
+        /// <summary>
         /// Get logger for exception handling
         /// </summary>
-        public virtual IEnumerable<ILogger> Logger => FastAccess.Instance.DefaultLoggers;
+        public virtual IEnumerable<Lazy<ILogger>> Logger => FastAccess.Instance.DefaultLoggers;
 
         /// <summary>
         /// If true, connection will be automatically closed, else keep connection open
         /// </summary>
         public Boolean CloseConnectionOnDispose { get; set; } = true;
 
+        /// <summary>
+        /// Collection of all active Connections used in system. 
+        /// TODO: should be replaced by MemoryCache
+        /// </summary>
         private static readonly System.Collections.Concurrent.ConcurrentDictionary<int, IDbConnection> Connections = new System.Collections.Concurrent.ConcurrentDictionary<int, IDbConnection>();
+        
+        /// <summary>
+        /// Current Database Provider. No private setter for Intergration Tests
+        /// </summary>
+        public System.Data.Common.DbProviderFactory Factory { get; set; }
+
+        /// <summary>
+        /// Connection String Information
+        /// </summary>
+        private ConnectionStringSettings _connectionDesciption;
+
+        /// <summary>
+        /// Empty Constructor
+        /// </summary>
+        public BasicDbAccess()
+            : this(DefaultConnection)
+        {
+            
+        }
+
+        /// <summary>
+        /// Use DAL with specific Connection String Information
+        /// </summary>
+        /// <param name="configurationName"></param>
+        public BasicDbAccess(String configurationName)
+        {
+            this.RefreshConnectionSettings(configurationName);
+        }
+
+        /// <summary>
+        /// Use DAK with disconnected Configuration.
+        /// </summary>
+        /// <param name="connectionString"></param>
+        /// <param name="providerName"></param>
+        public BasicDbAccess(String connectionString, String providerName)
+        {
+            this.RefreshConnectionSettings(connectionString, providerName);
+        }
+
+        /// <summary>
+        /// Refresh disconnected connection
+        /// </summary>
+        /// <param name="providerName">Configuration connection string name</param>
+        public void RefreshConnectionSettings(string providerName)
+        {
+            this._connectionDesciption = ConfigurationManager.ConnectionStrings[providerName];
+        }
+
+        /// <summary>
+        /// Refresh disconnected connection
+        /// </summary>
+        /// <param name="connectionString">connection string</param>
+        /// <param name="providerName">SQL Provider</param>
+        public void RefreshConnectionSettings(String connectionString, String providerName)
+        {
+            this._connectionDesciption = new ConnectionStringSettings("DisconnectedConnection", connectionString, providerName);
+        }
 
         /// <summary>
         /// Create a new DbConnection and open it
@@ -49,10 +114,23 @@ namespace DalCore
             return currentConnection;
         }
 
+        /// <summary>
+        /// Create new Database Factory which can create new connection
+        /// </summary>
+        private void CreateFactory()
+        {
+            this.Factory = System.Data.Common.DbProviderFactories.GetFactory(this._connectionDesciption.ProviderName);
+        }
+
+        /// <summary>
+        /// Can override current connection with new one. It is not recommended do this.
+        /// </summary>
+        /// <param name="connection">new connection</param>
         public static void OverrideConnection(IDbConnection connection)
         {
             Connections.AddOrUpdate(System.Threading.Thread.CurrentThread.ManagedThreadId, connection, (id, con) => connection);
         }
+
         /// <summary>
         /// Open new Connection and begin transaction
         /// </summary>
@@ -65,38 +143,10 @@ namespace DalCore
         }
 
         /// <summary>
-        /// Current Database Provider. No private setter for Intergration Tests
+        /// Reopen external connection if broken/closed or open new if no external connection passed as reference
         /// </summary>
-        public System.Data.Common.DbProviderFactory Factory { get; set; }
-        /// <summary>
-        /// Connection String Information
-        /// </summary>
-        private readonly ConnectionStringSettings _connectionDesciption;
-        /// <summary>
-        /// Use DAL with specific Connection String Information
-        /// </summary>
-        /// <param name="providerName"></param>
-        public BasicDbAccess(String providerName)
-        {
-            this._connectionDesciption = ConfigurationManager.ConnectionStrings[providerName];
-        }
-        /// <summary>
-        /// Use DAK with disconnected Configuration.
-        /// </summary>
-        /// <param name="connectionString"></param>
-        /// <param name="providerName"></param>
-        public BasicDbAccess(String connectionString, String providerName)
-        {
-            this._connectionDesciption = new ConnectionStringSettings("DisconnectedConnection", connectionString, providerName);
-        }
-        /// <summary>
-        /// for the future use... if exented
-        /// </summary>
-        private void CreateFactory()
-        {
-            this.Factory = System.Data.Common.DbProviderFactories.GetFactory(this._connectionDesciption.ProviderName);
-        }
-
+        /// <param name="externalConnection">External Connection</param>
+        /// <returns>External or new Connection</returns>
         private IDbConnection GetConnection(IDbConnection externalConnection)
         {
             IDbConnection connection = null;
@@ -115,6 +165,7 @@ namespace DalCore
 
             return connection;
         }
+
         /// <summary>
         /// Write into all loggers and rollback transaction if return value is false
         /// </summary>
@@ -125,10 +176,11 @@ namespace DalCore
             Boolean result = true;
             foreach (var logger in this.Logger)
             {
-                result &= logger.WriteLog(e);
+                result &= (logger?.Value?.WriteLog(e)).GetValueOrDefault();
             }
             return result;
         }
+
         /// <summary>
         /// Write into all loggers and rollback transaction if return value is false
         /// </summary>
@@ -140,7 +192,7 @@ namespace DalCore
             Boolean result = true;
             foreach (var logger in this.Logger)
             {
-                result &= logger.WriteLog(e);
+                result &= (logger?.Value?.WriteLog(e)).GetValueOrDefault();
             }
 
             if (result == false)
@@ -243,6 +295,7 @@ namespace DalCore
                 }
             }
         }
+
         /// <summary>
         /// Remove connection for the own Thread
         /// </summary>
@@ -254,19 +307,34 @@ namespace DalCore
                 item.Dispose();
             }
         }
+
         /// <summary>
         /// Free resources
         /// </summary>
         public void Dispose()
         {
-            if (this.CloseConnectionOnDispose == true)
+            this.Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        private void Dispose(bool disposing)
+        {
+            if (disposing == true)
             {
-                IDbConnection removed = null;
-                if (Connections.TryRemove(System.Threading.Thread.CurrentThread.ManagedThreadId, out removed) == true)
+                if (this.CloseConnectionOnDispose == true)
                 {
-                    removed.Dispose();
+                    IDbConnection removed = null;
+                    if (Connections.TryRemove(System.Threading.Thread.CurrentThread.ManagedThreadId, out removed) == true)
+                    {
+                        removed.Dispose();
+                    }
                 }
             }
+        }
+
+        ~BasicDbAccess()
+        {
+            this.Dispose(false);
         }
     }
 }

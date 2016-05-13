@@ -15,7 +15,7 @@ namespace DalCore
     /// <summary>
     /// Allow Import all existing Data Access Layers
     /// </summary>
-    public class FastAccess
+    public class FastAccess : IDisposable
     {
         #region Singleton
 
@@ -39,18 +39,6 @@ namespace DalCore
             }
         }
 
-        public static FastAccess InitializeWithArguments(String importDirectory, IEnumerable<Assembly> assemblies = null)
-        {
-            lock (Sync)
-            {
-                Instance.DictionaryCatalogPath = importDirectory;
-                Instance.Assemblies = assemblies;
-                Instance.Initialize();
-            }
-
-            return Instance;
-        }
-
         #endregion
 
         /// <summary>
@@ -58,21 +46,20 @@ namespace DalCore
         /// </summary>
         private FastAccess()
         {
+            this.Initialize();
         }
 
-        public String DictionaryCatalogPath { get; set; } = ".";
-        public IEnumerable<Assembly> Assemblies { get; set; }
-
-        public void Initialize()
+        private void Initialize()
         {
             var catalogs = new List<ComposablePartCatalog>();
-            if (string.IsNullOrEmpty(this.DictionaryCatalogPath) == false)
+            var config = DalCoreConfiguration.Instance;
+            if (string.IsNullOrEmpty(config.Directory) == false)
             {
-                catalogs.Add(new DirectoryCatalog(this.DictionaryCatalogPath));
+                catalogs.Add(new DirectoryCatalog(config.Directory));
             }
-            if (this.Assemblies != null)
+            if (string.IsNullOrEmpty(config.Assembly) == false)
             {
-                catalogs.AddRange(Assemblies.Select(a => new AssemblyCatalog(a)));
+                catalogs.Add(new AssemblyCatalog(config.Assembly));
             }
 
             if (catalogs.Count == 0)
@@ -81,14 +68,19 @@ namespace DalCore
             }
 
             var catalog = new AggregateCatalog(catalogs);
-            var container = new CompositionContainer(catalog, true);
-            container.ComposeParts(this);
+            this._container = new CompositionContainer(catalog, true);
+            this._container.ComposeParts(this);
         }
+        /// <summary>
+        /// MEF Container. Only for Dispose
+        /// </summary>
+        private CompositionContainer _container;
 
         /// <summary>
         /// Load default implementation for logger
         /// </summary>
-        [ImportMany] public IEnumerable<ILogger> DefaultLoggers;
+        [ImportMany(AllowRecomposition = true)]
+        public IEnumerable<Lazy<ILogger>> DefaultLoggers;
 
         /// <summary>
         /// Get Data Access Layer as Interface
@@ -124,7 +116,37 @@ namespace DalCore
         /// <summary>
         /// load all data access layers
         /// </summary>
-        [ImportMany]
+        [ImportMany(AllowRecomposition = true)]
         private IEnumerable<Lazy<IDataAccessLayer, ITypeAccessor>> _plugins;
+
+        #region dispose
+        /// <summary>
+        /// Dispose managed and unmanaged resources
+        /// </summary>
+        public void Dispose()
+        {
+            this.Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+        /// <summary>
+        /// Manage Disposing
+        /// </summary>
+        /// <param name="disposing">if true, dispose managed </param>
+        private void Dispose(bool disposing)
+        {
+            if (disposing == true)
+            {
+                this._container?.ReleaseExports(this._plugins);
+                this._container?.ReleaseExports(this.DefaultLoggers);
+            }
+        }
+        /// <summary>
+        /// Dispose unmanaged resources
+        /// </summary>
+        ~FastAccess()
+        {
+            this.Dispose(false);
+        }
+        #endregion
     }
 }
