@@ -30,6 +30,10 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="NProxy.Core, Version=2.3.0.0, Culture=neutral, PublicKeyToken=75421c8750338fd2, processorArchitecture=MSIL">
+      <HintPath>..\packages\NProxy.Core.2.3.4\lib\net35\NProxy.Core.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.ComponentModel.Composition" />
     <Reference Include="System.Configuration" />
@@ -53,6 +57,8 @@
     <Compile Include="DatabaseAccess\DataAccessLayerShared.cs" />
     <Compile Include="DatabaseAccess\IDataAccessLayerShared.cs" />
     <Compile Include="DalCoreConfiguration.cs" />
+    <Compile Include="Repository\IRepository.cs" />
+    <Compile Include="Repository\RepositoryOperator.cs" />
     <Compile Include="SingleItemProcessor\DalBase.cs" />
     <Compile Include="DatabaseAccess\DefaultDatabaseOperation.cs" />
     <Compile Include="DatabaseAccess\ITypeAccessor.cs" />
@@ -77,6 +83,7 @@
     <None Include="App.config">
       <SubType>Designer</SubType>
     </None>
+    <None Include="packages.config" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
