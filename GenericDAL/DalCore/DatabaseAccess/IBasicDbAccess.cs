@@ -4,7 +4,7 @@ using System.Data;
 using System.Data.Common;
 using SharedComponents;
 
-namespace DalCore
+namespace DalCore.DatabaseAccess
 {
     /// <summary>
     /// Default Descriptor for Basic Database Access

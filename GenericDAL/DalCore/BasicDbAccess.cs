@@ -5,6 +5,7 @@ using System.Data;
 using System.Text;
 using SharedComponents;
 using Localization = L10n.Properties.Resources;
+using DalCore.DatabaseAccess;
 
 namespace DalCore
 {
@@ -32,7 +33,7 @@ namespace DalCore
         /// TODO: should be replaced by MemoryCache
         /// </summary>
         private static readonly System.Collections.Concurrent.ConcurrentDictionary<int, IDbConnection> Connections = new System.Collections.Concurrent.ConcurrentDictionary<int, IDbConnection>();
-        
+
         /// <summary>
         /// Current Database Provider. No private setter for Intergration Tests
         /// </summary>
@@ -49,7 +50,7 @@ namespace DalCore
         public BasicDbAccess()
             : this(DefaultConnection)
         {
-            
+
         }
 
         /// <summary>
@@ -153,14 +154,14 @@ namespace DalCore
             if (externalConnection != null)
             {
                 connection = externalConnection;
-                if (connection.State == ConnectionState.Broken || connection.State == ConnectionState.Closed)
-                {
-                    connection.Open();
-                }
             }
             else
             {
                 connection = this.OpenConnection();
+            }
+            if (connection.State == ConnectionState.Broken || connection.State == ConnectionState.Closed)
+            {
+                connection.Open();
             }
 
             return connection;
@@ -174,9 +175,16 @@ namespace DalCore
         protected virtual bool WriteToAllLoggers(Exception e)
         {
             Boolean result = true;
-            foreach (var logger in this.Logger)
+            if (this.Logger != null)
             {
-                result &= (logger?.Value?.WriteLog(e)).GetValueOrDefault();
+                foreach (var logger in this.Logger)
+                {
+                    result &= (logger?.Value?.WriteLog(e)).GetValueOrDefault();
+                }
+            }
+            else
+            {
+                Console.WriteLine(e.Message);
             }
             return result;
         }
@@ -231,7 +239,7 @@ namespace DalCore
             {
                 if (externalConnection == null && connection != null)
                 {
-                    connection.Dispose();
+                    this.Dispose(true);
                 }
             }
         }
@@ -291,7 +299,7 @@ namespace DalCore
                 }
                 if (externalConnection == null && connection != null)
                 {
-                    connection.Dispose();
+                    this.Dispose(true);
                 }
             }
         }
@@ -299,7 +307,7 @@ namespace DalCore
         /// <summary>
         /// Remove connection for the own Thread
         /// </summary>
-        internal static void DisposeConnection()
+        public static void DisposeConnection()
         {
             IDbConnection item = null;
             if (Connections.TryRemove(System.Threading.Thread.CurrentThread.ManagedThreadId, out item) == true)

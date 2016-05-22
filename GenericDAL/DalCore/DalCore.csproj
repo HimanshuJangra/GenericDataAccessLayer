@@ -30,6 +30,10 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="FastMember, Version=1.0.0.9, Culture=neutral, PublicKeyToken=9056fda458ff61cf, processorArchitecture=MSIL">
+      <HintPath>..\packages\FastMember.Signed.1.0.0.11\lib\net40\FastMember.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="NProxy.Core, Version=2.3.0.0, Culture=neutral, PublicKeyToken=75421c8750338fd2, processorArchitecture=MSIL">
       <HintPath>..\packages\NProxy.Core.2.3.4\lib\net35\NProxy.Core.dll</HintPath>
       <Private>True</Private>

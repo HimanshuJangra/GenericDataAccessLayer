@@ -90,10 +90,15 @@ namespace DalCore
         public IDataAccessLayer GetDal<T>()
             where T : SharedComponents.Data.IDataTransferObject
         {
-            var dal = this._plugins?.FirstOrDefault(a => a.Metadata.ParameterType == typeof(T))?.Value;
-            if (dal == null)
+            return this.GetDal(typeof(T));
+        }
+
+        public IDataAccessLayer GetDal(Type dtoType, bool throwOnNull = true)
+        {
+            var dal = this._plugins?.FirstOrDefault(a => a.Metadata.ParameterType == dtoType)?.Value;
+            if (dal == null && throwOnNull == true)
             {
-                throw new ArgumentNullException(typeof(T).Name, nameof(Localization.GE002));
+                throw new ArgumentNullException(dtoType.Name, nameof(Localization.GE002));
             }
             return dal;
         }

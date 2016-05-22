@@ -25,7 +25,8 @@ namespace DalCore
         /// <param name="direction">optional value for direction. Default value is input. Can be used return or output parameter required</param>
         /// <param name="type">optional database type value. Dont use </param>
         /// <returns>Created or updated parameter</returns>
-        public static IDbDataParameter AddParameter<T>(this IDbCommand command, String parameterName, T value = default(T), ParameterDirection direction = ParameterDirection.Input, DbType? type = null)
+        public static IDbDataParameter AddParameter<T>(this IDbCommand command, String parameterName, T value = default(T), 
+            ParameterDirection direction = ParameterDirection.Input, DbType? type = null, int? size = null)
         {
             IDbDataParameter parameter = (command.Parameters as IList).OfType<IDbDataParameter>().FirstOrDefault(a => a.ParameterName == parameterName);
             if (parameter == null)
@@ -36,6 +37,11 @@ namespace DalCore
             }
             parameter.Value = value;
             parameter.Direction = direction;
+
+            if(size != null)
+            {
+                parameter.Size = size.Value;
+            }
             if (type != null)
             {
                 parameter.DbType = type.Value;
@@ -224,6 +230,12 @@ namespace DalCore
             where TDal : class, IDataAccessLayer
         {
             return FastAccess.Instance.GetDal<T>() as TDal;
+        }
+
+        public static T GetDal<T>()
+            where T : class, IDataAccessLayer
+        {
+            return FastAccess.Instance.GetConcreteDal<T>();
         }
 
         public static IDataAccessLayer Load<TDc>(this TDc item)

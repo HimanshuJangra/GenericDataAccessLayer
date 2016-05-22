@@ -26,7 +26,7 @@ namespace DalCore.DatabaseAccess
         /// <summary>
         /// List mit den Output, InputOutput, Return Parametern
         /// </summary>
-        List<System.Data.IDbDataParameter> OutputParameters { get; }
+        List<IDbDataParameter> OutputParameters { get; }
 
         /// <summary>
         /// Get one entry from db using current Entity as keyholder
@@ -39,14 +39,14 @@ namespace DalCore.DatabaseAccess
         /// </summary>
         /// <param name="keyHolder">Object that contains primary keys for the Stored procedure</param>
         /// <param name="command">Existing Command to use</param>
-        void Get(IDataTransferObject keyHolder, System.Data.IDbCommand command);
+        void Get(IDataTransferObject keyHolder, IDbCommand command);
 
         /// <summary>
         /// A datareader that allow to get specific Entity information and save it into an object
         /// </summary>
         /// <param name="reader">Datareader that allow read from Stream</param>
         /// <returns>Current DC</returns>
-        IDataTransferObject Get(System.Data.IDataRecord reader);
+        IDataTransferObject Get(IDataRecord reader);
 
         /// <summary>
         /// A datareader that allow to get specific Entity information and save it into an object
@@ -73,7 +73,7 @@ namespace DalCore.DatabaseAccess
         /// </summary>
         /// <param name="items">data from query where to save in</param>
         /// <param name="command">Existing Command to use</param>
-        void Read(List<IDataTransferObject> items, System.Data.IDbCommand command);
+        void Read(List<IDataTransferObject> items, IDbCommand command);
 
         /// <summary>
         /// read "object bound or unbound" data from query. 
@@ -82,6 +82,6 @@ namespace DalCore.DatabaseAccess
         /// <param name="items">List that will contain the data</param>
         /// <param name="generator">Read data from query and return it for items list</param>
         /// <param name="reader">Data Accessor</param>
-        void Read<TGeneric>(IList<TGeneric> items, Func<System.Data.IDataRecord, TGeneric> generator, System.Data.IDataReader reader);
+        void Read<TGeneric>(IList<TGeneric> items, Func<IDataRecord, TGeneric> generator, IDataReader reader);
     }
 }
