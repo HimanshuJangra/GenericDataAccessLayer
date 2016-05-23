@@ -60,11 +60,22 @@ namespace DalCore
         public static T ReadObject<T>(this IDataRecord reader, int ordinal, T defaultValue = default(T))
         {
             T result = defaultValue;
+            object value = reader.ReadObject(ordinal);
+            if (value != null)
+            {
+                result = (T)value;
+            }
+            return result;
+        }
+
+        public static object ReadObject(this IDataRecord reader, int ordinal)
+        {
+            object result = null;
             try
             {
                 if (reader.IsDBNull(ordinal) == false)
                 {
-                    result = (T)reader.GetValue(ordinal);
+                    result = reader.GetValue(ordinal);
                 }
             }
             catch
@@ -74,6 +85,7 @@ namespace DalCore
 
             return result;
         }
+
         /// <summary>
         /// Get Value from Reader and convert it into Type given by generic parameter using column name
         /// </summary>

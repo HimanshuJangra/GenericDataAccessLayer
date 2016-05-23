@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using System.IO;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Runtime.Serialization;
+using System.Transactions;
 using FastMember;
 
 namespace DalCore.Repository.Tests
@@ -23,6 +24,21 @@ namespace DalCore.Repository.Tests
         {
             var result = RepositoryOperator.ToList<RepoTest>().ReadEntity(2);
             Assert.AreEqual(4, result.Count);
+        }
+
+        [TestMethod()]
+        public void InsertEntity()
+        {
+            using (new TransactionScope())
+            {
+                var result = RepositoryOperator.InsertList<RepoTest>().InsertEntity(new List<Entity>
+                {
+                    new Entity { Name = "Eurika" },
+                    new Entity { Name = "na suppa", Remark = "keine suppe" }
+                });
+                Assert.AreEqual(2, result.Count);
+                Assert.IsFalse(result.Any(a => a.Id == 0));
+            }
         }
 
         [TestMethod()]
@@ -74,7 +90,7 @@ namespace DalCore.Repository.Tests
         public interface RepoTest : IRepository
         {
             List<Entity> ReadEntity(int Id);
-            List<Entity> ReadRefEntity(ref int id);
+            List<Entity> InsertEntity(List<Entity> items);
             List<Entity> GetSomeOut(out string test, out int id);
         }
     }

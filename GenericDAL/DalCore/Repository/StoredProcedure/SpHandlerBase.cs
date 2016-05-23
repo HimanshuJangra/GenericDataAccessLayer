@@ -45,7 +45,7 @@ namespace DalCore.Repository.StoredProcedure
         /// <param name="methodInfo">Method Information</param>
         /// <param name="parameters">Parameters from execution code</param>
         /// <returns></returns>
-        protected virtual object PrepareInitialoization(MethodInfo methodInfo, object[] parameters)
+        protected virtual object PrepareInitialization(MethodInfo methodInfo, object[] parameters)
         {
             ReturnType = methodInfo.ReturnType;
             // fill parameter informations
@@ -67,7 +67,7 @@ namespace DalCore.Repository.StoredProcedure
         /// <returns>The return value.</returns>
         public virtual object Invoke(object target, MethodInfo methodInfo, object[] parameters)
         {
-            var result = PrepareInitialoization(methodInfo, parameters);
+            var result = PrepareInitialization(methodInfo, parameters);
 
             AccessLayer.Execute(Execute, result, null);
 
@@ -90,27 +90,35 @@ namespace DalCore.Repository.StoredProcedure
             foreach (var item in Parameters)
             {
                 ParameterInfo pi = item.Key;
-                ParameterDirection direction = ParameterDirection.Input;
-                if (pi.IsOut == true && pi.IsIn == false)
-                    direction = ParameterDirection.Output;
-                else if (pi.IsOut == true && pi.IsIn == true)
-                    direction = ParameterDirection.InputOutput;
-                int? size = null;
-
-                if (pi.ParameterType.In(typeof(string), refString))
+                if (ParameterValidation(pi))
                 {
-                    size = -1;
-                }
-                var parameter = command.AddParameter($"@{pi.Name}", item.Value, direction, size: size);
+                    ParameterDirection direction = ParameterDirection.Input;
+                    if (pi.IsOut == true && pi.IsIn == false)
+                        direction = ParameterDirection.Output;
+                    else if (pi.IsOut == true && pi.IsIn == true)
+                        direction = ParameterDirection.InputOutput;
+                    int? size = null;
 
-                if (pi.IsOut == true)
-                {
-                    Outputs.Add(pi, parameter);
+                    if (pi.ParameterType.In(typeof(string), refString))
+                    {
+                        size = -1;
+                    }
+                    var parameter = command.AddParameter($"@{pi.Name}", item.Value, direction, size: size);
+
+                    if (pi.IsOut == true)
+                    {
+                        Outputs.Add(pi, parameter);
+                    }
                 }
             }
             command.CommandType = CommandType.StoredProcedure;
             command.CommandText = CommandText;
             command.Prepare();
+        }
+
+        protected virtual bool ParameterValidation(ParameterInfo pi)
+        {
+            return true;
         }
 
         /// <summary>

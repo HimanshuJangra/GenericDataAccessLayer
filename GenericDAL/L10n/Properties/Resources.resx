@@ -123,6 +123,9 @@
   <data name="DA001" xml:space="preserve">
     <value>Return Type must be of Type IList</value>
   </data>
+  <data name="DA002" xml:space="preserve">
+    <value>Could not find list with entities to save</value>
+  </data>
   <data name="DE001" xml:space="preserve">
     <value>Processing data have no instance</value>
   </data>

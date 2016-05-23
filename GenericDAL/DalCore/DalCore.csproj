@@ -65,6 +65,7 @@
     <Compile Include="Repository\RepositoryOperator.cs" />
     <Compile Include="Repository\StoredProcedure\SpGetListHandler.cs" />
     <Compile Include="Repository\StoredProcedure\SpHandlerBase.cs" />
+    <Compile Include="Repository\StoredProcedure\SpInsertListHandler.cs" />
     <Compile Include="SingleItemProcessor\DalBase.cs" />
     <Compile Include="DatabaseAccess\DefaultDatabaseOperation.cs" />
     <Compile Include="DatabaseAccess\ITypeAccessor.cs" />

@@ -11,5 +11,11 @@ namespace DalCore.Repository
         {
             return new ProxyFactory().CreateProxy<TRepository>(Type.EmptyTypes, new SpGetListHandler());
         }
+
+        public static TRepository InsertList<TRepository>()
+            where TRepository : class, IRepository
+        {
+            return new ProxyFactory().CreateProxy<TRepository>(Type.EmptyTypes, new SpInsertListHandler());
+        }
     }
 }
