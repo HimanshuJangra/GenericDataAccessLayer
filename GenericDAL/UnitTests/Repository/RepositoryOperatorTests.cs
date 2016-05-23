@@ -31,8 +31,8 @@ namespace DalCore.Repository.Tests
             int id;
             string test;
             var result = RepositoryOperator.ToList<RepoTest>().GetSomeOut(out test, out id);
-            Assert.IsTrue(id == result.FirstOrDefault()?.Id);
-            Assert.AreEqual("OK", test);
+            Assert.IsNotNull(test);
+            Assert.AreEqual(id, result.Count);
         }
 
 
