@@ -62,10 +62,8 @@
     <Compile Include="DatabaseAccess\IDataAccessLayerShared.cs" />
     <Compile Include="DalCoreConfiguration.cs" />
     <Compile Include="Repository\IRepository.cs" />
-    <Compile Include="Repository\RepositoryOperator.cs" />
-    <Compile Include="Repository\StoredProcedure\SpGetListHandler.cs" />
-    <Compile Include="Repository\StoredProcedure\SpHandlerBase.cs" />
-    <Compile Include="Repository\StoredProcedure\SpInsertListHandler.cs" />
+    <Compile Include="Repository\DynamicRepository.cs" />
+    <Compile Include="Repository\StoredProcedure\GenericDalInterceptor.cs" />
     <Compile Include="SingleItemProcessor\DalBase.cs" />
     <Compile Include="DatabaseAccess\DefaultDatabaseOperation.cs" />
     <Compile Include="DatabaseAccess\ITypeAccessor.cs" />

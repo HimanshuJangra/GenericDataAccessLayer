@@ -12,6 +12,7 @@ namespace DalCore
     /// <summary>
     /// Base definition of the Database Access
     /// </summary>
+    [System.ComponentModel.Composition.Export(typeof(IBasicDbAccess))]
     public class BasicDbAccess : IBasicDbAccess
     {
         /// <summary>

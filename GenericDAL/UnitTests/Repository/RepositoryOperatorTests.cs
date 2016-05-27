@@ -2,6 +2,8 @@
 using DalCore.Repository;
 using System;
 using System.Collections.Generic;
+using System.Data;
+using System.Data.SqlClient;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -10,19 +12,20 @@ using System.Runtime.Serialization.Formatters.Binary;
 using System.Runtime.Serialization;
 using System.Transactions;
 using FastMember;
+using L10n.Properties;
+using Ploeh.AutoFixture;
 
 namespace DalCore.Repository.Tests
 {
     [TestClass()]
     public class RepositoryOperatorTests
     {
-
         TypeAccessor accessor = TypeAccessor.Create(typeof(Entity));
 
         [TestMethod()]
         public void ToListTest()
         {
-            var result = RepositoryOperator.ToList<RepoTest>().ReadEntity(2);
+            var result = DynamicRepository.CreateDynamic<RepoTest>().ReadEntity(2);
             Assert.AreEqual(4, result.Count);
         }
 
@@ -31,11 +34,13 @@ namespace DalCore.Repository.Tests
         {
             using (new TransactionScope())
             {
-                var result = RepositoryOperator.InsertList<RepoTest>().InsertEntity(new List<Entity>
+                //var items = new Fixture().Create<List<Entity>>();
+                var result = new List<Entity>
                 {
                     new Entity { Name = "Eurika" },
                     new Entity { Name = "na suppa", Remark = "keine suppe" }
-                });
+                };
+                DynamicRepository.CreateDynamic<RepoTest>().InsertEntity(result);
                 Assert.AreEqual(2, result.Count);
                 Assert.IsFalse(result.Any(a => a.Id == 0));
             }
@@ -46,7 +51,7 @@ namespace DalCore.Repository.Tests
         {
             int id;
             string test;
-            var result = RepositoryOperator.ToList<RepoTest>().GetSomeOut(out test, out id);
+            var result = DynamicRepository.CreateDynamic<RepoTest>().GetSomeOut(out test, out id);
             Assert.IsNotNull(test);
             Assert.AreEqual(id, result.Count);
         }
@@ -80,6 +85,12 @@ namespace DalCore.Repository.Tests
             }
         }
 
+        private class Nullables
+        {
+            public int? Value1 { get; set; }
+            public Entity Entity { get; set; }
+        }
+
         public class Entity
         {
             public int Id { get; set; }
@@ -90,7 +101,7 @@ namespace DalCore.Repository.Tests
         public interface RepoTest : IRepository
         {
             List<Entity> ReadEntity(int Id);
-            List<Entity> InsertEntity(List<Entity> items);
+            void InsertEntity(List<Entity> items);
             List<Entity> GetSomeOut(out string test, out int id);
         }
     }

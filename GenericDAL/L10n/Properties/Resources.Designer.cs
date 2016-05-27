@@ -88,6 +88,24 @@ namespace L10n.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Reference types in Table Valued Parameter are currently not supported.
+        /// </summary>
+        public static string DA003 {
+            get {
+                return ResourceManager.GetString("DA003", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Cannot handle cartesian Produkt. Only one Collection is allowed to use as parameter if Table Valued Parameter are not in use.
+        /// </summary>
+        public static string DA004 {
+            get {
+                return ResourceManager.GetString("DA004", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Processing data have no instance.
         /// </summary>
         public static string DE001 {

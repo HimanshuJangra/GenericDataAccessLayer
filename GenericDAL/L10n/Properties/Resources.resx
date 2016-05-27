@@ -126,6 +126,12 @@
   <data name="DA002" xml:space="preserve">
     <value>Could not find list with entities to save</value>
   </data>
+  <data name="DA003" xml:space="preserve">
+    <value>Reference types in Table Valued Parameter are currently not supported</value>
+  </data>
+  <data name="DA004" xml:space="preserve">
+    <value>Cannot handle cartesian Produkt. Only one Collection is allowed to use as parameter if Table Valued Parameter are not in use</value>
+  </data>
   <data name="DE001" xml:space="preserve">
     <value>Processing data have no instance</value>
   </data>
