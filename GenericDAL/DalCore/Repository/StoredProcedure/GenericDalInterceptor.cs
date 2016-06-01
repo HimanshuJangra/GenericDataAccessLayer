@@ -140,7 +140,7 @@ namespace DalCore.Repository.StoredProcedure
         private bool CreateNewDataTableParameter(string parameterName, IDbCommand command, object value, ref int index)
         {
             bool result = false;
-            if (value is IEnumerable)
+            if (value is IEnumerable && (value is string || value.GetType() == Type.GetType("System.String&")) == false)
             {
                 IEnumerable data = value as IEnumerable;
                 var dataType = data.GetType().GenericTypeArguments[0];

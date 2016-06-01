@@ -69,7 +69,7 @@ namespace DalCore.Repository.StoredProcedure.Tests
             {
                 var x = a[0] as object[];
                 x[0] = _returnValue.Id;
-                x[1] =_returnValue.Remark;
+                x[1] = _returnValue.Remark;
                 return 2;
             });
         }
@@ -113,6 +113,15 @@ namespace DalCore.Repository.StoredProcedure.Tests
             Assert.AreEqual(nameof(ExecutionTest.Read), this._testCommand.CommandText);
         }
 
+        [TestMethod]
+        public void UpdateTest()
+        {
+            var x = _test.Update(_returnValue.Id, _returnValue.Remark);
+
+            Assert.AreEqual(_returnValue.Id, x.Id);
+            Assert.AreEqual(_returnValue.Remark, x.Remark);
+        }
+
         public class SomeEntity
         {
             public int Id { get; set; }
@@ -125,6 +134,7 @@ namespace DalCore.Repository.StoredProcedure.Tests
             SomeEntity Get(int Id);
             void Save(List<SomeEntity> items);
             List<SomeEntity> Read();
+            SomeEntity Update(int id, string remark);
         }
     }
 }
