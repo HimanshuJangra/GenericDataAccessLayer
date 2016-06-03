@@ -124,6 +124,15 @@ namespace L10n.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Could not add connection to internal Pool.
+        /// </summary>
+        public static string DL001 {
+            get {
+                return ResourceManager.GetString("DL001", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to No import catalogs exists. Cannot create fast access for Data Access Layer.
         /// </summary>
         public static string GE001 {

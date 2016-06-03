@@ -138,6 +138,9 @@
   <data name="DE002" xml:space="preserve">
     <value>Different connections are in use</value>
   </data>
+  <data name="DL001" xml:space="preserve">
+    <value>Could not add connection to internal Pool</value>
+  </data>
   <data name="GE001" xml:space="preserve">
     <value>No import catalogs exists. Cannot create fast access for Data Access Layer</value>
   </data>

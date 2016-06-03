@@ -12,6 +12,7 @@ using FastMember;
 using L10n.Properties;
 using NProxy.Core;
 using SharedComponents;
+using System.Diagnostics;
 
 namespace DalCore.Repository.StoredProcedure
 {
@@ -78,7 +79,6 @@ namespace DalCore.Repository.StoredProcedure
             /// Reference to Return value
             /// </summary>
             public object ReturnObject;
-
         }
         /// <summary>
         /// If true, all list will be mapped as Table Value parameters
@@ -91,7 +91,6 @@ namespace DalCore.Repository.StoredProcedure
         /// <param name="transit">Placeholder for internal parameter use</param>
         /// <param name="methodInfo">Method Information</param>
         /// <param name="parameters">Parameters from execution code</param>
-        /// <returns></returns>
         private void PrepareInitialization(TransitObject transit, MethodInfo methodInfo, object[] parameters)
         {
             transit.ReturnType = methodInfo.ReturnType;
@@ -214,6 +213,10 @@ namespace DalCore.Repository.StoredProcedure
                     }
                 }
             }
+            else
+            {
+                index = -1;
+            }
 
             return result;
         }
@@ -312,7 +315,7 @@ namespace DalCore.Repository.StoredProcedure
                         }
                     }
                 }
-                while (index >= 0);
+                while (index >= 0 && transit.Parameters.Count > 0);
             }
             // execute scalar. Can be Struct too
             else if (transit.ReturnObject != null)

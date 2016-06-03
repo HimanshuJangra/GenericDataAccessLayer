@@ -30,12 +30,6 @@ namespace DalCore
         public Boolean CloseConnectionOnDispose { get; set; } = true;
 
         /// <summary>
-        /// Collection of all active Connections used in system. 
-        /// TODO: should be replaced by MemoryCache
-        /// </summary>
-        private static readonly System.Collections.Concurrent.ConcurrentDictionary<int, IDbConnection> Connections = new System.Collections.Concurrent.ConcurrentDictionary<int, IDbConnection>();
-
-        /// <summary>
         /// Current Database Provider. No private setter for Intergration Tests
         /// </summary>
         public System.Data.Common.DbProviderFactory Factory { get; set; }
@@ -125,15 +119,6 @@ namespace DalCore
         }
 
         /// <summary>
-        /// Can override current connection with new one. It is not recommended do this.
-        /// </summary>
-        /// <param name="connection">new connection</param>
-        public static void OverrideConnection(IDbConnection connection)
-        {
-            Connections.AddOrUpdate(System.Threading.Thread.CurrentThread.ManagedThreadId, connection, (id, con) => connection);
-        }
-
-        /// <summary>
         /// Open new Connection and begin transaction
         /// </summary>
         /// <param name="connection">current connection</param>
@@ -176,18 +161,27 @@ namespace DalCore
         protected virtual bool WriteToAllLoggers(Exception e)
         {
             Boolean result = true;
-            if (this.Logger != null)
+            try
             {
-                foreach (var logger in this.Logger)
+                if (this.Logger != null)
                 {
-                    result &= (logger?.Value?.WriteLog(e)).GetValueOrDefault();
+                    foreach (var logger in this.Logger)
+                    {
+                        result &= (logger?.Value?.WriteLog(e)).GetValueOrDefault();
+                    }
                 }
             }
-            else
+            catch when(NoLogger(e))
             {
-                Console.WriteLine(e.Message);
+                
             }
             return result;
+        }
+
+        protected virtual bool NoLogger(Exception e)
+        {
+            Console.WriteLine(e.Message);
+            return false;
         }
 
         /// <summary>
@@ -304,6 +298,22 @@ namespace DalCore
                 }
             }
         }
+        #region static
+
+        /// <summary>
+        /// Collection of all active Connections used in system. 
+        /// TODO: should be replaced by MemoryCache?
+        /// </summary>
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<int, IDbConnection> Connections = new System.Collections.Concurrent.ConcurrentDictionary<int, IDbConnection>();
+
+        /// <summary>
+        /// Can override current connection with new one. It is not recommended do this.
+        /// </summary>
+        /// <param name="connection">new connection</param>
+        public static void OverrideConnection(IDbConnection connection)
+        {
+            Connections.AddOrUpdate(System.Threading.Thread.CurrentThread.ManagedThreadId, connection, (id, con) => connection);
+        }
 
         /// <summary>
         /// Remove connection for the own Thread
@@ -316,6 +326,32 @@ namespace DalCore
                 item.Dispose();
             }
         }
+
+        public static IDbConnection GetOrCreateConnection(string connectionConfiguration = DefaultConnection)
+        {
+            IDbConnection result = null;
+            if (Connections.ContainsKey(System.Threading.Thread.CurrentThread.ManagedThreadId))
+            {
+                result = Connections[System.Threading.Thread.CurrentThread.ManagedThreadId];
+            }
+            else
+            {
+                var settings = ConfigurationManager.ConnectionStrings[connectionConfiguration];
+                var factory = System.Data.Common.DbProviderFactories.GetFactory(settings.ProviderName);
+                if (Connections.TryAdd(System.Threading.Thread.CurrentThread.ManagedThreadId, result = factory.CreateConnection()) == false)
+                {
+                    throw new ArgumentException(nameof(Localization.DL001));
+                }
+                result.ConnectionString = settings.ConnectionString;
+                result.Open();
+            }
+
+            return result;
+        }
+
+        #endregion
+
+        #region Disposable
 
         /// <summary>
         /// Free resources
@@ -345,5 +381,6 @@ namespace DalCore
         {
             this.Dispose(false);
         }
+        #endregion
     }
 }

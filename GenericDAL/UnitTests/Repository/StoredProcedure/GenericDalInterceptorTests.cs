@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using NProxy.Core;
 using NSubstitute;
 using Ploeh.AutoFixture;
+using UnitTests.Repository.StoredProcedure;
 
 namespace DalCore.Repository.StoredProcedure.Tests
 {
@@ -27,7 +28,6 @@ namespace DalCore.Repository.StoredProcedure.Tests
         public void InitTest()
         {
             _dal = new BasicDbAccess();
-
             var factory = DbProviderFactories.GetFactory("System.Data.SqlClient");
             _realCommand = factory.CreateCommand();
             _testCommand = Substitute.For<DbCommand>();
@@ -73,68 +73,58 @@ namespace DalCore.Repository.StoredProcedure.Tests
                 return 2;
             });
         }
+        /// <summary>
+        /// Testcontext auf dem man eventuell zugreifen möchte
+        /// </summary>
+        public TestContext TestContext { get; set; }
 
         [TestCleanup]
         public void Cleanup()
         {
+            BasicDbAccess.DisposeConnection();
             _realCommand?.Dispose();
         }
 
         [TestMethod()]
-        public void GetTest()
+        public void GetSomeEntityTest()
         {
 
-            var result = _test.Get(1);
+            var result = _test.GetSomeEntity(1);
 
             Assert.AreEqual(_returnValue.Id, result.Id);
             Assert.AreEqual(_returnValue.Remark, result.Remark);
-            Assert.AreEqual(nameof(ExecutionTest.Get), this._testCommand.CommandText);
+            Assert.AreEqual(nameof(ExecutionTest.GetSomeEntity), this._testCommand.CommandText);
         }
 
         [TestMethod()]
-        public void SaveTest()
+        public void SaveSomeEntitiesTest()
         {
             var x = new List<SomeEntity> { _returnValue };
-            _test.Save(x);
+            _test.SaveSomeEntities(x);
 
-            Assert.AreEqual(nameof(ExecutionTest.Save), this._testCommand.CommandText);
+            Assert.AreEqual(nameof(ExecutionTest.SaveSomeEntities), this._testCommand.CommandText);
 
             _testCommand.Received(1);
         }
 
         [TestMethod()]
-        public void ReadTest()
+        public void ReadSomeEntitiesTest()
         {
-            var x = _test.Read();
+            var x = _test.ReadSomeEntities();
             var result = x[0];
             Assert.AreEqual(_returnValue.Id, result.Id);
             Assert.AreEqual(_returnValue.Remark, result.Remark);
 
-            Assert.AreEqual(nameof(ExecutionTest.Read), this._testCommand.CommandText);
+            Assert.AreEqual(nameof(ExecutionTest.ReadSomeEntities), this._testCommand.CommandText);
         }
 
         [TestMethod]
-        public void UpdateTest()
+        public void UpdateSomeTest()
         {
-            var x = _test.Update(_returnValue.Id, _returnValue.Remark);
+            var x = _test.UpdateSomeEntity(_returnValue.Id, _returnValue.Remark);
 
             Assert.AreEqual(_returnValue.Id, x.Id);
             Assert.AreEqual(_returnValue.Remark, x.Remark);
-        }
-
-        public class SomeEntity
-        {
-            public int Id { get; set; }
-
-            public string Remark { get; set; }
-        }
-
-        public interface ExecutionTest : IRepository
-        {
-            SomeEntity Get(int Id);
-            void Save(List<SomeEntity> items);
-            List<SomeEntity> Read();
-            SomeEntity Update(int id, string remark);
         }
     }
 }
