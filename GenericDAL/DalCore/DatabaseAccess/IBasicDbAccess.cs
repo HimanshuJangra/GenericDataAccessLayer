@@ -40,15 +40,14 @@ namespace DalCore.DatabaseAccess
         void RefreshConnectionSettings(String connectionString, String providerName);
 
         /// <summary>
-        /// Execute Remote Procedure Call (can be anything that go to database)
+        /// Execute Remote Procedure Call (can be anything that go to database) using transaction from outside or creating new one, if external transaction is null
         /// </summary>
         /// <typeparam name="TItem">Generic Item that pass to execution engine</typeparam>
         /// <param name="execute">Execution engine</param>
         /// <param name="data">data for execution engine</param>
         /// <param name="externalConnection">re-useable optional connection, if nut null</param>
         /// <param name="externalTransaction">re-useable optional transaction</param>
-        /// <param name="useTransaction">if true, transaction will be initialized (optional)</param>
-        void Execute<TItem>(Action<TItem, IDbCommand> execute, TItem data, IDbConnection externalConnection = null, IDbTransaction externalTransaction = null, bool useTransaction = false);
+        void Execute<TItem>(Action<TItem, IDbCommand> execute, TItem data, IDbConnection externalConnection, IDbTransaction externalTransaction);
 
         /// <summary>
         /// Execute Remote Procedure Call (can be anything that go to database)
@@ -57,7 +56,7 @@ namespace DalCore.DatabaseAccess
         /// <param name="execute">Execution engine</param>
         /// <param name="data">data for execution engine</param>
         /// <param name="externalConnection">re-useable connection, if nut null</param>
-        void Execute<TItem>(Action<TItem, IDbCommand> execute, TItem data, IDbConnection externalConnection = null);
+        void Execute<TItem>(Action<TItem, IDbCommand> execute, TItem data, IDbConnection externalConnection);
         
         /// <summary>
         /// Manage SQL connections. If no connection is initialized, it will create one, else take existing

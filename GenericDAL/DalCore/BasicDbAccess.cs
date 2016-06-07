@@ -67,6 +67,8 @@ namespace DalCore
             this.RefreshConnectionSettings(connectionString, providerName);
         }
 
+        #region Settings
+
         /// <summary>
         /// Refresh disconnected connection
         /// </summary>
@@ -87,6 +89,18 @@ namespace DalCore
         }
 
         /// <summary>
+        /// Create new Database Factory which can create new connection
+        /// </summary>
+        private void CreateFactory()
+        {
+            this.Factory = System.Data.Common.DbProviderFactories.GetFactory(this._connectionDesciption.ProviderName);
+        }
+
+        #endregion
+
+        #region Connection
+
+        /// <summary>
         /// Create a new DbConnection and open it
         /// </summary>
         public virtual IDbConnection OpenConnection()
@@ -97,25 +111,16 @@ namespace DalCore
                 this.CreateFactory();
             }
 
-            IDbConnection currentConnection;
-            int threadId = System.Threading.Thread.CurrentThread.ManagedThreadId;
-            if (Connections.TryGetValue(threadId, out currentConnection) == false)
-            {
-                currentConnection = this.Factory.CreateConnection();
-                Connections.TryAdd(threadId, currentConnection);
-
-                currentConnection.ConnectionString = this._connectionDesciption.ConnectionString;
-                currentConnection.Open();
-            }
-            return currentConnection;
+            return GetOrCreateConnection(this.Factory, this._connectionDesciption);
         }
 
         /// <summary>
-        /// Create new Database Factory which can create new connection
+        /// Create new local connection. this will not be automatically stored in connection "pool".
         /// </summary>
-        private void CreateFactory()
+        /// <returns></returns>
+        protected virtual IDbConnection OpenLocalConnection()
         {
-            this.Factory = System.Data.Common.DbProviderFactories.GetFactory(this._connectionDesciption.ProviderName);
+            return GetLocalConnection(this.Factory, this._connectionDesciption);
         }
 
         /// <summary>
@@ -130,21 +135,15 @@ namespace DalCore
         }
 
         /// <summary>
-        /// Reopen external connection if broken/closed or open new if no external connection passed as reference
+        /// Reopen external connection if broken/closed or open new if no external connection passed as reference.
+        /// Creation of new Connection is local => is not stored in connection list and cannot be reused.
         /// </summary>
         /// <param name="externalConnection">External Connection</param>
         /// <returns>External or new Connection</returns>
         private IDbConnection GetConnection(IDbConnection externalConnection)
         {
             IDbConnection connection = null;
-            if (externalConnection != null)
-            {
-                connection = externalConnection;
-            }
-            else
-            {
-                connection = this.OpenConnection();
-            }
+            connection = externalConnection ?? this.OpenLocalConnection();
             if (connection.State == ConnectionState.Broken || connection.State == ConnectionState.Closed)
             {
                 connection.Open();
@@ -153,6 +152,8 @@ namespace DalCore
             return connection;
         }
 
+        #endregion
+
         /// <summary>
         /// Write into all loggers and rollback transaction if return value is false
         /// </summary>
@@ -160,27 +161,15 @@ namespace DalCore
         /// <returns>true if all logger returns true</returns>
         protected virtual bool WriteToAllLoggers(Exception e)
         {
-            Boolean result = true;
-            try
-            {
-                if (this.Logger != null)
-                {
-                    foreach (var logger in this.Logger)
-                    {
-                        result &= (logger?.Value?.WriteLog(e)).GetValueOrDefault();
-                    }
-                }
-            }
-            catch when(NoLogger(e))
-            {
-                
-            }
-            return result;
+            return this.WriteToAllLoggers(e, null);
         }
 
         protected virtual bool NoLogger(Exception e)
         {
-            Console.WriteLine(e.Message);
+#if DEBUG
+            System.Diagnostics.Trace.TraceError(e.Message);
+            System.Diagnostics.Trace.TraceError(e.StackTrace);
+#endif
             return false;
         }
 
@@ -193,14 +182,23 @@ namespace DalCore
         protected virtual bool WriteToAllLoggers(Exception e, IDbTransaction transaction)
         {
             Boolean result = true;
-            foreach (var logger in this.Logger)
+            try
             {
-                result &= (logger?.Value?.WriteLog(e)).GetValueOrDefault();
+                if (this.Logger != null)
+                {
+                    foreach (var logger in this.Logger)
+                    {
+                        result &= (logger?.Value?.WriteLog(e)).GetValueOrDefault();
+                    }
+                }
+                if (result == false)
+                {
+                    transaction?.Rollback();
+                }
             }
-
-            if (result == false)
+            catch when (NoLogger(e))
             {
-                transaction?.Rollback();
+
             }
 
             return result;
@@ -213,7 +211,7 @@ namespace DalCore
         /// <param name="execute">Execution engine</param>
         /// <param name="data">data for execution engine</param>
         /// <param name="externalConnection">re-useable connection, if nut null</param>
-        public void Execute<TItem>(Action<TItem, IDbCommand> execute, TItem data, IDbConnection externalConnection = null)
+        public void Execute<TItem>(Action<TItem, IDbCommand> execute, TItem data, IDbConnection externalConnection)
         {
             IDbConnection connection = null;
 
@@ -232,23 +230,23 @@ namespace DalCore
             }
             finally
             {
-                if (externalConnection == null && connection != null)
+                //local connection will be always disposed!
+                if (externalConnection == null)
                 {
-                    this.Dispose(true);
+                    connection?.Dispose();
                 }
             }
         }
 
         /// <summary>
-        /// Execute Remote Procedure Call (can be anything that go to database)
+        /// Execute Remote Procedure Call (can be anything that go to database) using transaction from outside or creating new one, if external transaction is null
         /// </summary>
         /// <typeparam name="TItem">Generic Item that pass to execution engine</typeparam>
         /// <param name="execute">Execution engine</param>
         /// <param name="data">data for execution engine</param>
         /// <param name="externalConnection">re-useable optional connection, if nut null</param>
         /// <param name="externalTransaction">re-useable optional transaction</param>
-        /// <param name="useTransaction">if true, transaction will be initialized (optional)</param>
-        public void Execute<TItem>(Action<TItem, IDbCommand> execute, TItem data, IDbConnection externalConnection = null, IDbTransaction externalTransaction = null, Boolean useTransaction = false)
+        public void Execute<TItem>(Action<TItem, IDbCommand> execute, TItem data, IDbConnection externalConnection, IDbTransaction externalTransaction)
         {
             IDbConnection connection = null;
             IDbTransaction transaction = null;
@@ -265,7 +263,7 @@ namespace DalCore
                         throw new ArgumentException(nameof(Localization.DE002));
                     }
                 }
-                else if (useTransaction == true)
+                else
                 {
                     transaction = connection.BeginTransaction();
                 }
@@ -280,24 +278,25 @@ namespace DalCore
             }
             catch (Exception e) when (this.WriteToAllLoggers(e, transaction))
             {
-                if (transaction != null)
-                {
-                    transaction.Rollback();
-                }
+                transaction?.Rollback();
             }
             finally
             {
-                if (externalTransaction == null && transaction != null)
+                // local resources in use. 
+
+                // remove the transaction
+                if (externalTransaction == null)
                 {
-                    transaction.Commit();
-                    transaction.Dispose();
+                    transaction?.Commit();
+                    transaction?.Dispose();
                 }
-                if (externalConnection == null && connection != null)
+                if (externalConnection == null)
                 {
-                    this.Dispose(true);
+                    connection?.Dispose();
                 }
             }
         }
+
         #region static
 
         /// <summary>
@@ -327,26 +326,57 @@ namespace DalCore
             }
         }
 
-        public static IDbConnection GetOrCreateConnection(string connectionConfiguration = DefaultConnection)
+        /// <summary>
+        /// Get connection if contains in connection "pool" or
+        /// create new one and add to "pool" 
+        /// </summary>
+        /// <param name="factory">Database Provider Factory. Optional parameter. Will be created on null</param>
+        /// <param name="settings">Connection string setting. Optional parameter. Will be loaded from connection configuration if null</param>
+        /// <param name="connectionConfiguration">Name in web configuration section for connection string</param>
+        /// <returns>Opened Connection</returns>
+        public static IDbConnection GetOrCreateConnection(System.Data.Common.DbProviderFactory factory = null, ConnectionStringSettings settings = null, string connectionConfiguration = DefaultConnection)
         {
-            IDbConnection result = null;
-            if (Connections.ContainsKey(System.Threading.Thread.CurrentThread.ManagedThreadId))
+            IDbConnection connection = null;
+            if (Connections.TryGetValue(System.Threading.Thread.CurrentThread.ManagedThreadId, out connection) == false)
             {
-                result = Connections[System.Threading.Thread.CurrentThread.ManagedThreadId];
-            }
-            else
-            {
-                var settings = ConfigurationManager.ConnectionStrings[connectionConfiguration];
-                var factory = System.Data.Common.DbProviderFactories.GetFactory(settings.ProviderName);
-                if (Connections.TryAdd(System.Threading.Thread.CurrentThread.ManagedThreadId, result = factory.CreateConnection()) == false)
+                connection = GetLocalConnection(factory, settings, connectionConfiguration);
+                if (Connections.TryAdd(System.Threading.Thread.CurrentThread.ManagedThreadId, connection) == false)
                 {
                     throw new ArgumentException(nameof(Localization.DL001));
                 }
-                result.ConnectionString = settings.ConnectionString;
-                result.Open();
+            }
+            if (connection.State == ConnectionState.Broken || connection.State == ConnectionState.Closed)
+            {
+                connection.Open();
             }
 
-            return result;
+            return connection;
+        }
+
+        /// <summary>
+        /// Create new connection using given factory and connection string settings
+        /// </summary>
+        /// <param name="factory">Database Provider Factory. Optional parameter. Will be created on null</param>
+        /// <param name="settings">Connection string setting. Optional parameter. Will be loaded from connection configuration if null</param>
+        /// <param name="connectionConfiguration">Name in web configuration section for connection string</param>
+        /// <returns>Opened Connection</returns>
+        public static IDbConnection GetLocalConnection(System.Data.Common.DbProviderFactory factory = null, ConnectionStringSettings settings = null, string connectionConfiguration = DefaultConnection)
+        {
+            IDbConnection connection = null;
+            if (settings == null)
+            {
+                settings = ConfigurationManager.ConnectionStrings[connectionConfiguration];
+            }
+            if (factory == null)
+            {
+                factory = System.Data.Common.DbProviderFactories.GetFactory(settings.ProviderName);
+            }
+
+            connection = factory.CreateConnection();
+            connection.ConnectionString = settings.ConnectionString;
+            connection.Open();
+
+            return connection;
         }
 
         #endregion
@@ -361,22 +391,23 @@ namespace DalCore
             this.Dispose(true);
             GC.SuppressFinalize(this);
         }
-
+        /// <summary>
+        /// Managed Dispose
+        /// </summary>
+        /// <param name="disposing">if true, dispose managed objects</param>
         private void Dispose(bool disposing)
         {
             if (disposing == true)
             {
                 if (this.CloseConnectionOnDispose == true)
                 {
-                    IDbConnection removed = null;
-                    if (Connections.TryRemove(System.Threading.Thread.CurrentThread.ManagedThreadId, out removed) == true)
-                    {
-                        removed.Dispose();
-                    }
+                    DisposeConnection();
                 }
             }
         }
-
+        /// <summary>
+        /// Deconstructor
+        /// </summary>
         ~BasicDbAccess()
         {
             this.Dispose(false);
