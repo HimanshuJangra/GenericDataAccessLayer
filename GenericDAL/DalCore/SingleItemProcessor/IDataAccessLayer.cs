@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using SharedComponents.Data;
-using DalCore.DatabaseAccess;
+using GenericDataAccessLayer.Core.DatabaseAccess;
 
-namespace DalCore.SingleItemProcessor
+namespace GenericDataAccessLayer.Core.SingleItemProcessor
 {
     /// <summary>
     /// Depenends on Implementation can use Single Statement Execution (SSE) for CRUD or

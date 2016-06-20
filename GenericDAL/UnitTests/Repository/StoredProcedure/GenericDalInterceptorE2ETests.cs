@@ -1,11 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Data.SqlClient;
+﻿using System.Collections.Generic;
 using System.Transactions;
-using DalCore;
-using DalCore.Repository;
-using DalCore.Repository.StoredProcedure;
+using GenericDataAccessLayer.Core;
+using GenericDataAccessLayer.LazyDal.Repository;
+using GenericDataAccessLayer.LazyDal.StoredProcedure;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Ploeh.AutoFixture;
+using System.Linq;
+using System.Diagnostics;
 
 namespace UnitTests.Repository.StoredProcedure
 {
@@ -18,20 +19,7 @@ namespace UnitTests.Repository.StoredProcedure
         /// Testcontext auf dem man eventuell zugreifen möchte
         /// </summary>
         public TestContext TestContext { get; set; }
-
-        [TestCleanup]
-        public void Cleanup()
-        {
-            // force close connection
-            BasicDbAccess.DisposeConnection();
-        }
-
-        [TestInitialize]
-        public void Init()
-        {
-            // Since Unit tests override the default Db Access, we have to restore the default for each test.
-            GenericDalInterceptor.AccessLayer = new BasicDbAccess();
-        }
+        
 
         [TestMethod()]
         public void GetSomeEntityTest()
@@ -66,7 +54,7 @@ namespace UnitTests.Repository.StoredProcedure
         public void ReadSomeEntitiesTest()
         {
             var x = _test.ReadSomeEntities();
-            Assert.AreEqual(3, x.Count);
+            Assert.AreEqual(4, x.Count);
         }
 
         [TestMethod]

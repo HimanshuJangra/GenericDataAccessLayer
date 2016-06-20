@@ -3,10 +3,10 @@ using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using SharedComponents.Data;
-using DalCore.DatabaseAccess;
+using GenericDataAccessLayer.Core.DatabaseAccess;
 using Localization = L10n.Properties.Resources;
 
-namespace DalCore.SingleItemProcessor
+namespace GenericDataAccessLayer.Core.SingleItemProcessor
 {
     /// <summary>
     /// Base definition how to process single statement execution

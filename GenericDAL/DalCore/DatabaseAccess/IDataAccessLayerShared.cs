@@ -6,7 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using SharedComponents.Data;
 
-namespace DalCore.DatabaseAccess
+namespace GenericDataAccessLayer.Core.DatabaseAccess
 {
     public interface IDataAccessLayerShared : IBasicDbAccess
     {

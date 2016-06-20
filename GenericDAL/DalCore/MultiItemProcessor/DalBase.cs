@@ -1,7 +1,7 @@
-﻿using DalCore.DatabaseAccess;
+﻿using GenericDataAccessLayer.Core.DatabaseAccess;
 using SharedComponents.Data;
 
-namespace DalCore.MultiItemProcessor
+namespace GenericDataAccessLayer.Core.MultiItemProcessor
 {
     /// <summary>
     /// Extended version of Data Access Layer

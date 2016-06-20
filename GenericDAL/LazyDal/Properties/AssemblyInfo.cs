@@ -1,12 +1,11 @@
 ﻿using System.Reflection;
-using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("GenericDataAccessLayer.Core")]
-[assembly: AssemblyDescription("Generic Data Access Layer Core implementation")]
+[assembly: AssemblyTitle("LazyDal")]
+[assembly: AssemblyDescription("definition of Data Access Layer for lazy developers that have no performance issues")]
 
 // Setting ComVisible to false makes the types in this assembly not visible 
 // to COM components.  If you need to access a type in this assembly from 
@@ -14,5 +13,4 @@ using System.Runtime.InteropServices;
 [assembly: ComVisible(false)]
 
 // The following GUID is for the ID of the typelib if this project is exposed to COM
-[assembly: Guid("42fe85f8-b0f8-40f7-96d2-2a10cddf8d61")]
-
+[assembly: Guid("b208d125-8d2e-476a-8beb-c47f5106835e")]

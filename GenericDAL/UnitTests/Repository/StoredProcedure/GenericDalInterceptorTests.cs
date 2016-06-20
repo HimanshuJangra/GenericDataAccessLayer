@@ -1,25 +1,20 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-using DalCore.Repository.StoredProcedure;
 using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
-using System.Data.SqlClient;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using GenericDataAccessLayer.LazyDal.StoredProcedure;
 using NProxy.Core;
 using NSubstitute;
 using Ploeh.AutoFixture;
 using UnitTests.Repository.StoredProcedure;
 
-namespace DalCore.Repository.StoredProcedure.Tests
+namespace GenericDataAccessLayer.Core.Repository.StoredProcedure.Tests
 {
     [TestClass()]
     public class GenericDalInterceptorTests
     {
         private ExecutionTest _test;
-        private BasicDbAccess _dal;
         private DbCommand _realCommand;
         private IDbCommand _testCommand;
         private SomeEntity _returnValue;
@@ -27,7 +22,6 @@ namespace DalCore.Repository.StoredProcedure.Tests
         [TestInitialize]
         public void InitTest()
         {
-            _dal = new BasicDbAccess();
             var factory = DbProviderFactories.GetFactory("System.Data.SqlClient");
             _realCommand = factory.CreateCommand();
             _testCommand = Substitute.For<DbCommand>();
@@ -39,10 +33,7 @@ namespace DalCore.Repository.StoredProcedure.Tests
             connection.State.Returns(ConnectionState.Open);
             connection.CreateCommand().Returns(a => _testCommand);
 
-
-            _dal.Factory = Substitute.For<DbProviderFactory>();
-            _dal.Factory.CreateConnection().Returns(connection);
-            GenericDalInterceptor.AccessLayer = _dal;
+            
             _test = new ProxyFactory().CreateProxy<ExecutionTest>(Type.EmptyTypes, new GenericDalInterceptor { UseTvp = true });
 
 
@@ -88,7 +79,7 @@ namespace DalCore.Repository.StoredProcedure.Tests
         [TestMethod()]
         public void GetSomeEntityTest()
         {
-
+            _test.ConnectionStringSettings = "test";
             var result = _test.GetSomeEntity(1);
 
             Assert.AreEqual(_returnValue.Id, result.Id);

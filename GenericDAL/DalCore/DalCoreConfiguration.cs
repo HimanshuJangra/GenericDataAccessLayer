@@ -4,11 +4,11 @@ using System.ComponentModel.Composition;
 using System.Configuration;
 using System.Reflection;
 
-namespace DalCore
+namespace GenericDataAccessLayer.Core
 {
     public class DalCoreConfiguration : ConfigurationSection
     {
-        [ConfigurationProperty(nameof(DalCoreConfiguration.Directory), DefaultValue = null, IsRequired = false, IsKey = false)]
+        [ConfigurationProperty(nameof(Directory), DefaultValue = null, IsRequired = false, IsKey = false)]
         public String Directory
         {
             get
@@ -20,7 +20,7 @@ namespace DalCore
                 this[nameof(this.Directory)] = value;
             }
         }
-        [ConfigurationProperty(nameof(DalCoreConfiguration.Assembly), DefaultValue = null, IsRequired = false, IsKey = false)]
+        [ConfigurationProperty(nameof(Assembly), DefaultValue = null, IsRequired = false, IsKey = false)]
         public String Assembly
         {
             get

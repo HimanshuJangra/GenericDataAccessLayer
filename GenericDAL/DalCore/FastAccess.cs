@@ -5,12 +5,12 @@ using System.ComponentModel.Composition.Hosting;
 using System.ComponentModel.Composition.Primitives;
 using System.Linq;
 using System.Reflection;
-using DalCore.DatabaseAccess;
-using DalCore.SingleItemProcessor;
+using GenericDataAccessLayer.Core.DatabaseAccess;
+using GenericDataAccessLayer.Core.SingleItemProcessor;
 using Localization = L10n.Properties.Resources;
 using SharedComponents;
 
-namespace DalCore
+namespace GenericDataAccessLayer.Core
 {
     /// <summary>
     /// Allow Import all existing Data Access Layers

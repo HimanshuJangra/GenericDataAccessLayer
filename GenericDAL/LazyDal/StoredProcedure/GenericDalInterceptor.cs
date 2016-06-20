@@ -1,20 +1,18 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.ComponentModel.Composition;
 using System.Data;
 using System.Linq;
 using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
-using DalCore.DatabaseAccess;
 using FastMember;
 using L10n.Properties;
 using NProxy.Core;
 using SharedComponents;
+using GenericDataAccessLayer.Core;
+using System.Configuration;
 using System.Diagnostics;
 
-namespace DalCore.Repository.StoredProcedure
+namespace GenericDataAccessLayer.LazyDal.StoredProcedure
 {
     /// <summary>
     /// Rules 
@@ -24,31 +22,6 @@ namespace DalCore.Repository.StoredProcedure
     /// </summary>
     public class GenericDalInterceptor : IInvocationHandler
     {
-        private static IBasicDbAccess _accessLayer;
-        private static readonly object Sync = new object();
-        /// <summary>
-        /// Basic DAL Operator that help us handle commands. If not manually set, will be created by default
-        /// </summary>
-        public static IBasicDbAccess AccessLayer
-        {
-            get
-            {
-                if (_accessLayer == null)
-                {
-                    lock (Sync)
-                    {
-                        if (_accessLayer == null)
-                            _accessLayer = new BasicDbAccess();
-                    }
-                }
-
-                return _accessLayer;
-            }
-            set
-            {
-                _accessLayer = value;
-            }
-        }
         /// <summary>
         /// since more or less GenericDalInterceptor an a singleton and IBasicDbAccess.Execute support only transit parameter
         /// use this transit object to make GenericDalInterceptor Thread Safe, which mean, no private fields/properties are allowed
@@ -86,6 +59,64 @@ namespace DalCore.Repository.StoredProcedure
         public bool UseTvp;
 
         /// <summary>
+        /// Connection String setting name. Be aware that this parameter is global depends on instance.
+        /// </summary>
+        private string _connectionStringSettings = "DefaultConnection";
+
+        /// <summary>
+        /// Configuration Setting for Connection String
+        /// </summary>
+        private ConnectionStringSettings _settings;
+
+        /// <summary>
+        /// Provider Factory that we need to create connection
+        /// </summary>
+        private System.Data.Common.DbProviderFactory _factory;
+
+        /// <summary>
+        /// Watch for query execution time
+        /// </summary>
+        private Stopwatch QueryTime;
+
+        /// <summary>
+        /// Tracker for total execution time
+        /// </summary>
+        private Stopwatch TotalTime;
+
+        private IDbConnection _connection;
+
+        /// <summary>
+        /// Current Connection in Use
+        /// </summary>
+        private IDbConnection Connection
+        {
+            get
+            {
+                if (_connection == null)
+                {
+                    _connection = _factory.CreateConnection();
+                    _connection.ConnectionString = _settings.ConnectionString;
+                    _connection.Open();
+                }
+                else if (_connection.State == ConnectionState.Closed || _connection.State == ConnectionState.Broken)
+                {
+                    _connection.Open();
+                }
+
+                return _connection;
+            }
+        }
+
+        private void ConfigureDbAccess()
+        {
+            if (_settings == null)
+            {
+                _settings = ConfigurationManager.ConnectionStrings[_connectionStringSettings];
+                _factory = System.Data.Common.DbProviderFactories.GetFactory(_settings.ProviderName);
+            }
+        }
+
+        /// <summary>
         /// Initialize some vital properties for SP execution
         /// </summary>
         /// <param name="transit">Placeholder for internal parameter use</param>
@@ -114,18 +145,70 @@ namespace DalCore.Repository.StoredProcedure
         /// <returns>The return value.</returns>
         public object Invoke(object target, MethodInfo methodInfo, object[] parameters)
         {
-            var transit = new TransitObject();
-            this.PrepareInitialization(transit, methodInfo, parameters);
-
-            AccessLayer.Execute(Execute, transit, null);
-
-            // write output parameters
-            foreach (var item in transit.Outputs)
+            Object result = null;
+            if (methodInfo.Name == nameof(IRepository.Dispose))
             {
-                parameters[item.Key.Position] = item.Value.Value;
-            }
 
-            return transit.ReturnObject;
+                return null;
+            }
+            else if (methodInfo.Name.Contains(nameof(IRepository.ConnectionStringSettings)))
+            {
+                if (methodInfo.Name.StartsWith("set_"))
+                {
+                    string newSetting = parameters[0].ToString();
+                    if (newSetting != this._connectionStringSettings)
+                    {
+                        this._connectionStringSettings = newSetting;
+                        _settings = null;
+                    }
+                }
+                else
+                {
+                    result = this._connectionStringSettings;
+                }
+            }
+            else if (methodInfo.Name.Contains(nameof(IRepository.Connection)))
+            {
+                if (methodInfo.Name.StartsWith("set_"))
+                {
+                    this._connection = parameters[0] as IDbConnection;
+                }
+                else
+                {
+                    result = this._connection;
+                }
+            }
+            else if (methodInfo.Name.Contains(nameof(IRepository.QueryExecutionTime)))
+            {
+                result = QueryTime?.ElapsedMilliseconds;
+            }
+            else if (methodInfo.Name.Contains(nameof(IRepository.ExecutionTime)))
+            {
+                result = TotalTime?.ElapsedMilliseconds;
+            }
+            else
+            {
+                TotalTime?.Start();
+                ConfigureDbAccess();
+                var transit = new TransitObject();
+                this.PrepareInitialization(transit, methodInfo, parameters);
+
+                using (var command = Connection.CreateCommand())
+                {
+                    command.Connection = Connection;
+                    Execute(transit, command);
+                }
+
+                // write output parameters
+                foreach (var item in transit.Outputs)
+                {
+                    parameters[item.Key.Position] = item.Value.Value;
+                }
+
+                result = transit.ReturnObject;
+                TotalTime?.Stop();
+            }
+            return result;
         }
 
         /// <summary>

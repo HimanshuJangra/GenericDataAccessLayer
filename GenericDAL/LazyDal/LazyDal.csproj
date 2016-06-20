@@ -4,11 +4,11 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{42FE85F8-B0F8-40F7-96D2-2A10CDDF8D61}</ProjectGuid>
+    <ProjectGuid>{B208D125-8D2E-476A-8BEB-C47F5106835E}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>GenericDataAccessLayer.Core</RootNamespace>
-    <AssemblyName>DalCore</AssemblyName>
+    <RootNamespace>GenericDataAccessLayer.LazyDal</RootNamespace>
+    <AssemblyName>LazyDal</AssemblyName>
     <TargetFrameworkVersion>v4.6.1</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
   </PropertyGroup>
@@ -30,11 +30,18 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="FastMember, Version=1.0.0.9, Culture=neutral, PublicKeyToken=9056fda458ff61cf, processorArchitecture=MSIL">
+      <HintPath>..\packages\FastMember.Signed.1.0.0.11\lib\net40\FastMember.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="NProxy.Core, Version=2.3.0.0, Culture=neutral, PublicKeyToken=75421c8750338fd2, processorArchitecture=MSIL">
+      <HintPath>..\packages\NProxy.Core.2.3.4\lib\net35\NProxy.Core.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.ComponentModel.Composition" />
     <Reference Include="System.Configuration" />
     <Reference Include="System.Core" />
-    <Reference Include="System.Runtime.Caching" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="Microsoft.CSharp" />
@@ -49,19 +56,10 @@
     <Compile Include="..\SharedAssemblyInfo.cs">
       <Link>Properties\SharedAssemblyInfo.cs</Link>
     </Compile>
-    <Compile Include="BasicDbAccess.cs" />
-    <Compile Include="DatabaseAccess\DataAccessLayerShared.cs" />
-    <Compile Include="DatabaseAccess\IDataAccessLayerShared.cs" />
-    <Compile Include="DalCoreConfiguration.cs" />
-    <Compile Include="Extensions.cs" />
-    <Compile Include="SingleItemProcessor\DalBase.cs" />
-    <Compile Include="DatabaseAccess\DefaultDatabaseOperation.cs" />
-    <Compile Include="DatabaseAccess\ITypeAccessor.cs" />
-    <Compile Include="FastAccess.cs" />
-    <Compile Include="DatabaseAccess\IBasicDbAccess.cs" />
-    <Compile Include="MultiItemProcessor\DalBase.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="SingleItemProcessor\IDataAccessLayer.cs" />
+    <Compile Include="DynamicRepository.cs" />
+    <Compile Include="IRepository.cs" />
+    <Compile Include="StoredProcedure\GenericDalInterceptor.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\L10n\L10n.csproj">
@@ -74,9 +72,7 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <None Include="App.config">
-      <SubType>Designer</SubType>
-    </None>
+    <None Include="packages.config" />
   </ItemGroup>
   <Import Project="..\SharedFeatures\SharedFeatures.projitems" Label="Shared" />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

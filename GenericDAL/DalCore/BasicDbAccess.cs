@@ -5,9 +5,9 @@ using System.Data;
 using System.Text;
 using SharedComponents;
 using Localization = L10n.Properties.Resources;
-using DalCore.DatabaseAccess;
+using GenericDataAccessLayer.Core.DatabaseAccess;
 
-namespace DalCore
+namespace GenericDataAccessLayer.Core
 {
     /// <summary>
     /// Base definition of the Database Access

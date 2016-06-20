@@ -80,15 +80,17 @@
     <Compile Include="Repository\StoredProcedure\GenericDalInterceptorTests.cs" />
     <Compile Include="Repository\StoredProcedure\GenericDalInterceptorE2ETests.cs" />
     <Compile Include="Repository\StoredProcedure\SomeEntity.cs" />
+    <Compile Include="SingleItemProcessor\SomeEntity.cs" />
+    <Compile Include="SingleItemProcessor\SomeEntityDal.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\DalCore\DalCore.csproj">
       <Project>{42FE85F8-B0F8-40F7-96D2-2A10CDDF8D61}</Project>
       <Name>DalCore</Name>
     </ProjectReference>
-    <ProjectReference Include="..\L10n\L10n.csproj">
-      <Project>{2c9f398f-628b-4e88-8d62-b24061c4d10e}</Project>
-      <Name>L10n</Name>
+    <ProjectReference Include="..\LazyDal\LazyDal.csproj">
+      <Project>{b208d125-8d2e-476a-8beb-c47f5106835e}</Project>
+      <Name>LazyDal</Name>
     </ProjectReference>
     <ProjectReference Include="..\SharedComponents\SharedComponents.csproj">
       <Project>{01b69df9-8fc8-4025-b753-0b0a8a2663a9}</Project>
@@ -106,6 +108,7 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
+  <ItemGroup />
   <Choose>
     <When Condition="'$(VisualStudioVersion)' == '10.0' And '$(IsCodedUITest)' == 'True'">
       <ItemGroup>

@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace DalCore.DatabaseAccess
+namespace GenericDataAccessLayer.Core.DatabaseAccess
 {
     [Flags]
     public enum DefaulDatabaseOperation

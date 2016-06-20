@@ -1,8 +1,8 @@
 ﻿using NProxy.Core;
 using System;
-using DalCore.Repository.StoredProcedure;
+using GenericDataAccessLayer.LazyDal.StoredProcedure;
 
-namespace DalCore.Repository
+namespace GenericDataAccessLayer.LazyDal.Repository
 {
     /// <summary>
     /// Contains Interceptor implementation
