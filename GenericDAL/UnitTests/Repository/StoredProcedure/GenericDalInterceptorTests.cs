@@ -26,8 +26,7 @@ namespace GenericDataAccessLayer.Core.Repository.StoredProcedure.Tests
             _realCommand = factory.CreateCommand();
             _testCommand = Substitute.For<DbCommand>();
             _testCommand.CreateParameter().Returns(a => factory.CreateParameter());
-            var collection = _realCommand.Parameters;
-            _testCommand.Parameters.Returns(collection);
+            _testCommand.Parameters.Returns(a=> _realCommand.Parameters);
 
             var connection = Substitute.For<DbConnection>();
             connection.State.Returns(ConnectionState.Open);
@@ -35,6 +34,7 @@ namespace GenericDataAccessLayer.Core.Repository.StoredProcedure.Tests
 
             
             _test = new ProxyFactory().CreateProxy<ExecutionTest>(Type.EmptyTypes, new GenericDalInterceptor { UseTvp = true });
+            _test.Connection = connection;
 
 
             var reader = Substitute.For<DbDataReader>();

@@ -109,7 +109,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
 
         private void ConfigureDbAccess()
         {
-            if (_settings == null)
+            if (_connection == null)
             {
                 _settings = ConfigurationManager.ConnectionStrings[_connectionStringSettings];
                 _factory = System.Data.Common.DbProviderFactories.GetFactory(_settings.ProviderName);
