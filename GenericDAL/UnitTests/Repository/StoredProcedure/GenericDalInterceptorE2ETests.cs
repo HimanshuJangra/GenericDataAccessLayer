@@ -13,21 +13,34 @@ namespace UnitTests.Repository.StoredProcedure
     [TestClass]
     public class GenericDalInterceptorE2ETests
     {
-        private static ExecutionTest _testTvp = DynamicRepository.CreateDynamic<ExecutionTest>(true);
-        private static ExecutionTest _test = DynamicRepository.CreateDynamic<ExecutionTest>(false);
-        /// <summary>
-        /// Testcontext auf dem man eventuell zugreifen möchte
-        /// </summary>
-        public TestContext TestContext { get; set; }
+        private static ExecutionTest _testTvp = DynamicRepository.CreateDynamic<ExecutionTest>();
+        private static ExecutionTest _test = DynamicRepository.CreateDynamic<ExecutionTest>();
+
+
+        [ClassInitialize]
+        public static void InitClass(TestContext context)
+        {
+            _testTvp.Operations = GenericDataAccessLayer.LazyDal.RepositoryOperations.All;
+            _test.Operations = GenericDataAccessLayer.LazyDal.RepositoryOperations.TimeLoggerOnly;
+        }
 
         [ClassCleanup]
-        private static void Clean()
+        public static void Clean()
         {
             _test?.Dispose();
             _testTvp?.Dispose();
         }
 
-        [TestMethod()]
+        [TestCleanup]
+        public void LocalClean()
+        {
+            System.Console.WriteLine($"SIR: Query Time Execution: {_test.QueryExecutionTime} ticks, {_test.QueryExecutionTime / System.TimeSpan.TicksPerMillisecond} ms");
+            System.Console.WriteLine($"SIR: Total Time Execution: {_test.TotalExecutionTime} ticks, {_test.TotalExecutionTime / System.TimeSpan.TicksPerMillisecond} ms");
+            System.Console.WriteLine($"MIR: Query Time Execution: {_testTvp.QueryExecutionTime} ticks, {_testTvp.QueryExecutionTime / System.TimeSpan.TicksPerMillisecond} ms");
+            System.Console.WriteLine($"MIR: Total Time Execution: {_testTvp.TotalExecutionTime} ticks, {_testTvp.TotalExecutionTime / System.TimeSpan.TicksPerMillisecond} ms");
+        }
+
+        [TestMethod]
         public void GetSomeEntityTest()
         {
             var result = _testTvp.GetSomeEntity(1);
@@ -37,7 +50,7 @@ namespace UnitTests.Repository.StoredProcedure
             Assert.AreEqual("Yes we can", result.Remark);
         }
 
-        [TestMethod()]
+        [TestMethod]
         public void SaveSomeEntitiesTVPTest()
         {
 
@@ -53,14 +66,18 @@ namespace UnitTests.Repository.StoredProcedure
                 Assert.AreEqual(newItem1.Remark, result.Remark);
                 result = _test.GetSomeEntity(5);
                 Assert.AreEqual(newItem2.Remark, result.Remark);
+
+                //workaround for transaction rollback
+                _test.DeleteSomeEntity(4);
+                _test.DeleteSomeEntity(5);
             }
         }
 
-        [TestMethod()]
+        [TestMethod]
         public void ReadSomeEntitiesTest()
         {
             var x = _test.ReadSomeEntities();
-            Assert.AreEqual(5, x.Count); //workaround for buggy transaction scope!
+            Assert.AreEqual(3, x.Count); //workaround for buggy transaction scope!
             //Assert.AreEqual(4, x.Count);
         }
 

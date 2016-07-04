@@ -11,6 +11,7 @@ using SharedComponents;
 using GenericDataAccessLayer.Core;
 using System.Configuration;
 using System.Diagnostics;
+using System.Transactions;
 
 namespace GenericDataAccessLayer.LazyDal.StoredProcedure
 {
@@ -53,15 +54,13 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
             /// </summary>
             public object ReturnObject;
         }
-        /// <summary>
-        /// If true, all list will be mapped as Table Value parameters
-        /// </summary>
-        public bool UseTvp;
 
         /// <summary>
         /// Connection String setting name. Be aware that this parameter is global depends on instance.
         /// </summary>
         private string _connectionStringSettings = "DefaultConnection";
+
+        private RepositoryOperations Operations = RepositoryOperations.None;
 
         /// <summary>
         /// Configuration Setting for Connection String
@@ -76,13 +75,13 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
         /// <summary>
         /// Watch for query execution time
         /// </summary>
-        private Stopwatch QueryTime;
+        private Stopwatch _queryTime;
 
         /// <summary>
         /// Tracker for total execution time
         /// </summary>
-        private Stopwatch TotalTime;
-
+        private Stopwatch _totalTime;
+        
         private IDbConnection _connection;
 
         /// <summary>
@@ -148,7 +147,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
             Object result = null;
             if (methodInfo.Name == nameof(IRepository.Dispose))
             {
-
+                Connection?.Dispose();
                 return null;
             }
             else if (methodInfo.Name.Contains(nameof(IRepository.ConnectionStringSettings)))
@@ -158,57 +157,111 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
                     string newSetting = parameters[0].ToString();
                     if (newSetting != this._connectionStringSettings)
                     {
-                        this._connectionStringSettings = newSetting;
+                        _connectionStringSettings = newSetting;
                         _settings = null;
                     }
                 }
                 else
                 {
-                    result = this._connectionStringSettings;
+                    result = _connectionStringSettings;
                 }
             }
             else if (methodInfo.Name.Contains(nameof(IRepository.Connection)))
             {
                 if (methodInfo.Name.StartsWith("set_"))
                 {
-                    this._connection = parameters[0] as IDbConnection;
+                    _connection = parameters[0] as IDbConnection;
                 }
                 else
                 {
-                    result = this._connection;
+                    result = _connection;
                 }
             }
             else if (methodInfo.Name.Contains(nameof(IRepository.QueryExecutionTime)))
             {
-                result = QueryTime?.ElapsedMilliseconds;
+                result = _queryTime?.ElapsedTicks;
             }
-            else if (methodInfo.Name.Contains(nameof(IRepository.ExecutionTime)))
+            else if (methodInfo.Name.Contains(nameof(IRepository.TotalExecutionTime)))
             {
-                result = TotalTime?.ElapsedMilliseconds;
+                result = _totalTime?.ElapsedTicks;
+            }
+            else if (methodInfo.Name.Contains(nameof(IRepository.Operations)))
+            {
+                if (methodInfo.Name.StartsWith("set_"))
+                {
+                    Operations = (RepositoryOperations)parameters[0];
+                }
+                else
+                {
+                    result = Operations;
+                }
             }
             else
             {
-                TotalTime?.Start();
-                ConfigureDbAccess();
-                var transit = new TransitObject();
-                this.PrepareInitialization(transit, methodInfo, parameters);
-
-                using (var command = Connection.CreateCommand())
+                InitWatches();
+                _totalTime?.Start();
+                try
                 {
-                    command.Connection = Connection;
-                    Execute(transit, command);
-                }
+                    ConfigureDbAccess();
+                    var transit = new TransitObject();
+                    this.PrepareInitialization(transit, methodInfo, parameters);
 
-                // write output parameters
-                foreach (var item in transit.Outputs)
+                    using (var command = Connection.CreateCommand())
+                    {
+                        command.Connection = Connection;
+                        Execute(transit, command);
+                    }
+
+                    // write output parameters
+                    foreach (var item in transit.Outputs)
+                    {
+                        parameters[item.Key.Position] = item.Value.Value;
+                    }
+
+                    result = transit.ReturnObject;
+                }
+                catch when(ExceptionFilter())
                 {
-                    parameters[item.Key.Position] = item.Value.Value;
                 }
-
-                result = transit.ReturnObject;
-                TotalTime?.Stop();
+                _totalTime?.Stop();
             }
             return result;
+        }
+        /// <summary>
+        /// Init or remove watches
+        /// </summary>
+        private void InitWatches()
+        {
+            if (Operations.HasFlag(RepositoryOperations.LogQueryExecutionTime) && _queryTime == null)
+            {
+                _queryTime = new Stopwatch();
+            }
+            else if (Operations.HasFlag(RepositoryOperations.LogQueryExecutionTime) == false && _queryTime != null)
+            {
+                _queryTime = null;
+            }
+
+            if (Operations.HasFlag(RepositoryOperations.LogTotalExecutionTime) && _totalTime == null)
+            {
+                _totalTime = new Stopwatch();
+            }
+            else if (Operations.HasFlag(RepositoryOperations.LogTotalExecutionTime) == false && _totalTime != null)
+            {
+                _totalTime = null;
+            }
+        }
+
+        /// <summary>
+        /// Check if current Query Timer is running. Stop it and continue with throwing exception
+        /// </summary>
+        /// <returns>FALSE, because we dont want to catch the exception</returns>
+        private bool ExceptionFilter()
+        {
+            if (_queryTime?.IsRunning == true)
+            {
+                _queryTime?.Stop();
+            }
+            return false;
         }
 
         /// <summary>
@@ -228,7 +281,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
                 var dataType = data.GetType().GenericTypeArguments[0];
                 var tAccessor = TypeAccessor.Create(dataType);
 
-                if (UseTvp == true)
+                if (Operations.HasFlag(RepositoryOperations.UseTableValuedParameter))
                 {
                     var table = new DataTable();
 
@@ -322,9 +375,9 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
                 if (CreateNewDataTableParameter(pi.Name, command, item.Value, ref index) == false)
                 {
                     ParameterDirection direction = ParameterDirection.Input;
-                    if (pi.IsOut == true && pi.IsIn == false)
+                    if (pi.IsOut && pi.IsIn == false)
                         direction = ParameterDirection.Output;
-                    else if (pi.IsOut == true && pi.IsIn == true)
+                    else if (pi.IsOut && pi.IsIn)
                         direction = ParameterDirection.InputOutput;
                     int? size = null;
 
@@ -334,7 +387,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
                     }
                     var parameter = command.AddParameter(pi.Name, item.Value, direction, size: size);
 
-                    if (pi.IsOut == true)
+                    if (pi.IsOut)
                     {
                         transit.Outputs.Add(pi, parameter);
                     }
@@ -353,7 +406,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
         private void Execute(TransitObject transit, IDbCommand command)
         {
             // can only set if TVP is activated
-            if (UseTvp == true)
+            if (Operations.HasFlag(RepositoryOperations.UseTableValuedParameter))
             {
                 ExecuteTvp(transit, command);
             }
@@ -370,7 +423,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
         private void ExecuteSingleItem(TransitObject transit, IDbCommand command)
         {
             // do not allow cartesian product
-            if (UseTvp == false &&
+            if (Operations.HasFlag(RepositoryOperations.UseTableValuedParameter) == false &&
                 transit.Parameters.Count(a => a.Value is IEnumerable) > 1 &&
                 transit.Parameters.Count(a => (a.Value is IEnumerable) == false) > 0)
             {
@@ -386,9 +439,10 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
                 do
                 {
                     PrepareExecute(transit, command, ref index);
-
+                    _queryTime?.Start();
                     using (var reader = command.ExecuteReader())
                     {
+                        _queryTime?.Stop();
                         int columns = reader.FieldCount;
                         foreach (var record in reader.ToRecord())
                         {
@@ -409,8 +463,10 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
                     PrepareExecute(transit, command, ref index);
                     if (transit.ReturnType.IsClass == true && transit.ReturnType != typeof(string))
                     {
+                        _queryTime?.Start();
                         using (var reader = command.ExecuteReader())
                         {
+                            _queryTime?.Stop();
                             int columns = reader.FieldCount;
                             if (reader.Read() == true)
                             {
@@ -431,7 +487,9 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
                 do
                 {
                     PrepareExecute(transit, command, ref index);
+                    _queryTime?.Start();
                     command.ExecuteNonQuery();
+                    _queryTime?.Stop();
                 }
                 while (index >= 0);
             }
@@ -450,8 +508,10 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
             {
                 var items = transit.ReturnObject as IList;
                 var accessor = TypeAccessor.Create(transit.ReturnType.GenericTypeArguments[0]);
+                _queryTime?.Start();
                 using (var reader = command.ExecuteReader())
                 {
+                    _queryTime?.Stop();
                     int columns = reader.FieldCount;
                     foreach (var record in reader.ToRecord())
                     {
@@ -466,8 +526,10 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
             {
                 if (transit.ReturnType.IsClass == true)
                 {
+                    _queryTime?.Start();
                     using (var reader = command.ExecuteReader())
                     {
+                        _queryTime?.Stop();
                         int columns = reader.FieldCount;
                         var accessor = TypeAccessor.Create(transit.ReturnType);
                         if (reader.Read() == true)
@@ -484,7 +546,9 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
             // ExecuteNonQuery
             else
             {
+                _queryTime?.Start();
                 command.ExecuteNonQuery();
+                _queryTime?.Stop();
             }
         }
 

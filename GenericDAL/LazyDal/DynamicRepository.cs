@@ -14,12 +14,11 @@ namespace GenericDataAccessLayer.LazyDal.Repository
         /// If you need performance, dont use it!
         /// </summary>
         /// <typeparam name="TRepository">Dynamic repository Interface, that contains only definition of the Stored Procedure</typeparam>
-        /// <param name="useTvp">If true, any Collection will be converted to a DataTable</param>
         /// <returns>Intercepted Repository</returns>
-        public static TRepository CreateDynamic<TRepository>(bool useTvp = true)
+        public static TRepository CreateDynamic<TRepository>()
             where TRepository : class, IRepository
         {
-            return new ProxyFactory().CreateProxy<TRepository>(Type.EmptyTypes, new GenericDalInterceptor { UseTvp = useTvp });
+            return new ProxyFactory().CreateProxy<TRepository>(Type.EmptyTypes, new GenericDalInterceptor());
         }
     }
 }
