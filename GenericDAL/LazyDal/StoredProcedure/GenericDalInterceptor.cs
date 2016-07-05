@@ -81,7 +81,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
         /// Tracker for total execution time
         /// </summary>
         private Stopwatch _totalTime;
-        
+
         private IDbConnection _connection;
 
         /// <summary>
@@ -147,54 +147,47 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
             Object result = null;
             if (methodInfo.Name == nameof(IRepository.Dispose))
             {
-                Connection?.Dispose();
-                return null;
+                _connection?.Dispose();
+                _connection = null;
             }
-            else if (methodInfo.Name.Contains(nameof(IRepository.ConnectionStringSettings)))
+            else if (methodInfo.Name == $"set_{nameof(IRepository.ConnectionStringSettings)}")
             {
-                if (methodInfo.Name.StartsWith("set_"))
+                string newSetting = parameters[0].ToString();
+                if (newSetting != this._connectionStringSettings)
                 {
-                    string newSetting = parameters[0].ToString();
-                    if (newSetting != this._connectionStringSettings)
-                    {
-                        _connectionStringSettings = newSetting;
-                        _settings = null;
-                    }
-                }
-                else
-                {
-                    result = _connectionStringSettings;
+                    _connection?.Dispose();
+                    _connection = null;
+                    _settings = null;
+                    _connectionStringSettings = newSetting;
                 }
             }
-            else if (methodInfo.Name.Contains(nameof(IRepository.Connection)))
+            else if (methodInfo.Name == $"get_{nameof(IRepository.ConnectionStringSettings)}")
             {
-                if (methodInfo.Name.StartsWith("set_"))
-                {
-                    _connection = parameters[0] as IDbConnection;
-                }
-                else
-                {
-                    result = _connection;
-                }
+                result = _connectionStringSettings;
             }
-            else if (methodInfo.Name.Contains(nameof(IRepository.QueryExecutionTime)))
+            else if (methodInfo.Name == $"set_{nameof(IRepository.Connection)}")
+            {
+                _connection = parameters[0] as IDbConnection;
+            }
+            else if (methodInfo.Name == $"get_{nameof(IRepository.Connection)}")
+            {
+                result = Connection;
+            }
+            else if (methodInfo.Name == $"get_{nameof(IRepository.QueryExecutionTime)}")
             {
                 result = _queryTime?.ElapsedTicks;
             }
-            else if (methodInfo.Name.Contains(nameof(IRepository.TotalExecutionTime)))
+            else if (methodInfo.Name == $"get_{nameof(IRepository.TotalExecutionTime)}")
             {
                 result = _totalTime?.ElapsedTicks;
             }
-            else if (methodInfo.Name.Contains(nameof(IRepository.Operations)))
+            else if (methodInfo.Name == $"set_{nameof(IRepository.Operations)}")
             {
-                if (methodInfo.Name.StartsWith("set_"))
-                {
-                    Operations = (RepositoryOperations)parameters[0];
-                }
-                else
-                {
-                    result = Operations;
-                }
+                Operations = (RepositoryOperations)parameters[0];
+            }
+            else if (methodInfo.Name == $"get_{nameof(IRepository.Operations)}")
+            {
+                result = Operations;
             }
             else
             {
@@ -220,7 +213,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
 
                     result = transit.ReturnObject;
                 }
-                catch when(ExceptionFilter())
+                catch when (ExceptionFilter())
                 {
                 }
                 _totalTime?.Stop();

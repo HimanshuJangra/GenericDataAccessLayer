@@ -82,7 +82,6 @@ namespace GenericDataAccessLayer.Core.Repository.StoredProcedure.Tests
         [TestMethod()]
         public void GetSomeEntityTest()
         {
-            _test.ConnectionStringSettings = "test";
             var result = _test.GetSomeEntity(1);
 
             Assert.AreEqual(_returnValue.Id, result.Id);
