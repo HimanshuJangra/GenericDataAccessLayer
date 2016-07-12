@@ -11,7 +11,6 @@ using SharedComponents;
 using GenericDataAccessLayer.Core;
 using System.Configuration;
 using System.Diagnostics;
-using System.Transactions;
 
 namespace GenericDataAccessLayer.LazyDal.StoredProcedure
 {
@@ -37,7 +36,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
             /// <summary>
             /// list of output parameters that should write to "out"
             /// </summary>
-            public Dictionary<ParameterInfo, IDataParameter> Outputs;
+            public readonly Dictionary<ParameterInfo, IDataParameter> Outputs = new Dictionary<ParameterInfo, IDataParameter>();
 
             /// <summary>
             /// Name of Stored Procedure
@@ -60,7 +59,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
         /// </summary>
         private string _connectionStringSettings = "DefaultConnection";
 
-        private RepositoryOperations Operations = RepositoryOperations.None;
+        private RepositoryOperations _operations = RepositoryOperations.None;
 
         /// <summary>
         /// Configuration Setting for Connection String
@@ -153,7 +152,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
             else if (methodInfo.Name == $"set_{nameof(IRepository.ConnectionStringSettings)}")
             {
                 string newSetting = parameters[0].ToString();
-                if (newSetting != this._connectionStringSettings)
+                if (newSetting != _connectionStringSettings)
                 {
                     _connection?.Dispose();
                     _connection = null;
@@ -183,11 +182,11 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
             }
             else if (methodInfo.Name == $"set_{nameof(IRepository.Operations)}")
             {
-                Operations = (RepositoryOperations)parameters[0];
+                _operations = (RepositoryOperations)parameters[0];
             }
             else if (methodInfo.Name == $"get_{nameof(IRepository.Operations)}")
             {
-                result = Operations;
+                result = _operations;
             }
             else
             {
@@ -197,7 +196,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
                 {
                     ConfigureDbAccess();
                     var transit = new TransitObject();
-                    this.PrepareInitialization(transit, methodInfo, parameters);
+                    PrepareInitialization(transit, methodInfo, parameters);
 
                     using (var command = Connection.CreateCommand())
                     {
@@ -225,20 +224,20 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
         /// </summary>
         private void InitWatches()
         {
-            if (Operations.HasFlag(RepositoryOperations.LogQueryExecutionTime) && _queryTime == null)
+            if (_operations.HasFlag(RepositoryOperations.LogQueryExecutionTime) && _queryTime == null)
             {
                 _queryTime = new Stopwatch();
             }
-            else if (Operations.HasFlag(RepositoryOperations.LogQueryExecutionTime) == false && _queryTime != null)
+            else if (_operations.HasFlag(RepositoryOperations.LogQueryExecutionTime) == false && _queryTime != null)
             {
                 _queryTime = null;
             }
 
-            if (Operations.HasFlag(RepositoryOperations.LogTotalExecutionTime) && _totalTime == null)
+            if (_operations.HasFlag(RepositoryOperations.LogTotalExecutionTime) && _totalTime == null)
             {
                 _totalTime = new Stopwatch();
             }
-            else if (Operations.HasFlag(RepositoryOperations.LogTotalExecutionTime) == false && _totalTime != null)
+            else if (_operations.HasFlag(RepositoryOperations.LogTotalExecutionTime) == false && _totalTime != null)
             {
                 _totalTime = null;
             }
@@ -258,23 +257,21 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
         }
 
         /// <summary>
-        /// Create new TVP is interceptor configured for Table Valued Parameters
+        /// Create new TVP is interceptor configured for Table Valued Parameters. Accept any data of type ICollection
         /// </summary>
         /// <param name="parameterName">Property name used as TVP name</param>
         /// <param name="command">Using DbCommand handle db parameter value</param>
         /// <param name="value">ICollection that should pass to DB</param>
-        /// <param name="index">Extract from index, if not TVP</param>
         /// <returns>If true, skip scalar parameter created</returns>
-        private bool CreateNewDataTableParameter(string parameterName, IDbCommand command, object value, ref int index)
+        private void CreateNewDataTableParameter(string parameterName, IDbCommand command, object value)
         {
-            bool result = false;
-            if (value is IEnumerable && (value is string || value.GetType() == Type.GetType("System.String&")) == false)
+            if (value is ICollection)
             {
                 IEnumerable data = value as IEnumerable;
                 var dataType = data.GetType().GenericTypeArguments[0];
                 var tAccessor = TypeAccessor.Create(dataType);
 
-                if (Operations.HasFlag(RepositoryOperations.UseTableValuedParameter))
+                if (_operations.HasFlag(RepositoryOperations.UseTableValuedParameter))
                 {
                     var table = new DataTable();
 
@@ -287,7 +284,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
                             correctColumnType = column.Type.GenericTypeArguments[0];
                         }
                         // nested reference types are not supported, right now
-                        if (column.Type != typeof(string) && column.Type.IsClass == true)
+                        if (column.Type != typeof(string) && column.Type.IsClass)
                         {
                             throw new NotSupportedException(nameof(Resources.DA003));
                         }
@@ -303,93 +300,44 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
                         }
                     }
                     command.AddParameter(parameterName, table);
-                    result = true;
-                }
-                else
-                {
-                    object dataValue = null;
-                    int internalIndex = 0;
-                    bool found = false;
-                    foreach (var item in data)
-                    {
-                        if (internalIndex == index)
-                        {
-                            found = true;
-                            dataValue = item;
-                            break;
-                        }
-                        internalIndex++;
-                    }
-
-                    if (found == false)
-                    {
-                        index = -1;
-                    }
-                    else
-                    {
-                        // allow only Class to be interpreted, except string
-                        if (dataType.IsClass == true && (dataType == typeof(string)) == false)
-                        {
-                            foreach (var item in tAccessor.GetMembers())
-                            {
-                                command.AddParameter(item.Name, tAccessor[dataValue, item.Name]);
-                            }
-                        }
-                        else
-                        {
-                            command.AddParameter(parameterName, dataValue);
-                        }
-                    }
                 }
             }
-            else
-            {
-                index = -1;
-            }
-
-            return result;
         }
-
         /// <summary>
         /// Pre-Execution Process that allow create stored Procedure parameters
         /// </summary>
         /// <param name="transit">placeholder that contains sp parameters</param>
         /// <param name="command">command we used to store parameters</param>
-        /// <param name="index">Extract from index, if not TVP</param>
-        private void PrepareExecute(TransitObject transit, IDbCommand command, ref int index)
+        private void PrepareExecute(TransitObject transit, IDbCommand command)
         {
-            transit.Outputs = new Dictionary<ParameterInfo, IDataParameter>();
             Type refString = Type.GetType("System.String&");
             // fill the parameters
-            foreach (var item in transit.Parameters)
+            foreach (var item in transit.Parameters.Where(a => a.Key.ParameterType.GenericTypeArguments.Length == 0))
             {
                 ParameterInfo pi = item.Key;
-                // true => exists TVP
-                if (CreateNewDataTableParameter(pi.Name, command, item.Value, ref index) == false)
+                ParameterDirection direction = ParameterDirection.Input;
+                if (pi.IsOut && pi.IsIn == false)
+                    direction = ParameterDirection.Output;
+                else if (pi.IsOut && pi.IsIn)
+                    direction = ParameterDirection.InputOutput;
+                int? size = null;
+
+                if (pi.ParameterType.In(typeof(string), refString))
                 {
-                    ParameterDirection direction = ParameterDirection.Input;
-                    if (pi.IsOut && pi.IsIn == false)
-                        direction = ParameterDirection.Output;
-                    else if (pi.IsOut && pi.IsIn)
-                        direction = ParameterDirection.InputOutput;
-                    int? size = null;
+                    size = -1;
+                }
+                var parameter = command.AddParameter(pi.Name, item.Value, direction, size: size);
 
-                    if (pi.ParameterType.In(typeof(string), refString))
-                    {
-                        size = -1;
-                    }
-                    var parameter = command.AddParameter(pi.Name, item.Value, direction, size: size);
-
-                    if (pi.IsOut)
-                    {
-                        transit.Outputs.Add(pi, parameter);
-                    }
+                if (pi.IsOut)
+                {
+                    transit.Outputs.Add(pi, parameter);
                 }
             }
             command.CommandType = CommandType.StoredProcedure;
             command.CommandText = transit.CommandText;
             command.Prepare();
         }
+
 
         /// <summary>
         /// Concrete implementation for List handler
@@ -399,7 +347,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
         private void Execute(TransitObject transit, IDbCommand command)
         {
             // can only set if TVP is activated
-            if (Operations.HasFlag(RepositoryOperations.UseTableValuedParameter))
+            if (_operations.HasFlag(RepositoryOperations.UseTableValuedParameter))
             {
                 ExecuteTvp(transit, command);
             }
@@ -416,75 +364,59 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
         private void ExecuteSingleItem(TransitObject transit, IDbCommand command)
         {
             // do not allow cartesian product
-            if (Operations.HasFlag(RepositoryOperations.UseTableValuedParameter) == false &&
-                transit.Parameters.Count(a => a.Value is IEnumerable) > 1 &&
-                transit.Parameters.Count(a => (a.Value is IEnumerable) == false) > 0)
+            var collection = transit.Parameters.Where(a => a.Value is ICollection).ToList();
+            if (_operations.HasFlag(RepositoryOperations.UseTableValuedParameter) == false &&
+                collection.Count > 1 &&
+                (transit.ReturnObject is IList) == false)
             {
                 throw new NotSupportedException(nameof(Resources.DA004));
             }
-            int index = 0;
+            PrepareExecute(transit, command);
             // if transit is List execute reader
             if (transit.ReturnObject is IList)
             {
-                var items = transit.ReturnObject as IList;
+                var items = (IList)transit.ReturnObject;
                 var accessor = TypeAccessor.Create(transit.ReturnType.GenericTypeArguments[0]);
-
-                do
+                
+                if (collection.Count > 0)
                 {
-                    PrepareExecute(transit, command, ref index);
-                    _queryTime?.Start();
-                    using (var reader = command.ExecuteReader())
+                    var genericType = collection[0].Value.GetType().GenericTypeArguments[0];
+                    TypeAccessor listType = genericType.IsClass && genericType != typeof(string) ? TypeAccessor.Create(genericType) : null;
+
+                    foreach (var item in collection)
                     {
-                        _queryTime?.Stop();
-                        int columns = reader.FieldCount;
-                        foreach (var record in reader.ToRecord())
-                        {
-                            var item = accessor.CreateNew();
-                            items?.Add(item);
-                            ExtractObject(columns, item, accessor, record);
-                        }
+                        CreateRefScalarVariable(item.Key.Name, item.Value, listType, command);
+                        ExecuteReaderToList(items, accessor, command);
                     }
                 }
-                while (index >= 0 && transit.Parameters.Count > 0);
+                else
+                {
+                    ExecuteReaderToList(items, accessor, command);
+                }
             }
             // execute scalar. Can be Struct too
             else if (transit.ReturnObject != null)
             {
-                var accessor = TypeAccessor.Create(transit.ReturnType);
-                do
-                {
-                    PrepareExecute(transit, command, ref index);
-                    if (transit.ReturnType.IsClass == true && transit.ReturnType != typeof(string))
-                    {
-                        _queryTime?.Start();
-                        using (var reader = command.ExecuteReader())
-                        {
-                            _queryTime?.Stop();
-                            int columns = reader.FieldCount;
-                            if (reader.Read() == true)
-                            {
-                                ExtractObject(columns, transit.ReturnObject, accessor, reader);
-                            }
-                        }
-                    }
-                    else
-                    {
-                        transit.ReturnObject = command.ExecuteScalar();
-                    }
-                }
-                while (index >= 0);
+                ExecuteWithSingleReturnValue(transit, command);
             }
             // ExecuteNonQuery
             else
             {
-                do
+                if (collection.Count > 0)
                 {
-                    PrepareExecute(transit, command, ref index);
-                    _queryTime?.Start();
-                    command.ExecuteNonQuery();
-                    _queryTime?.Stop();
+                    var genericType = collection[0].Value.GetType().GenericTypeArguments[0];
+                    TypeAccessor listType = genericType.IsClass && genericType != typeof(string) ? TypeAccessor.Create(genericType) : null;
+
+                    foreach (var item in collection)
+                    {
+                        CreateRefScalarVariable(item.Key.Name, item.Value, listType, command);
+                        ExecuteNonQuery(command);
+                    }
                 }
-                while (index >= 0);
+                else
+                {
+                    ExecuteNonQuery(command);
+                }
             }
         }
         /// <summary>
@@ -494,54 +426,27 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
         /// <param name="command">executive command</param>
         private void ExecuteTvp(TransitObject transit, IDbCommand command)
         {
-            int index = -1;
-            PrepareExecute(transit, command, ref index);
+            PrepareExecute(transit, command);
+            foreach (var item in transit.Parameters)
+            {
+                CreateNewDataTableParameter(item.Key.Name, command, item.Value);
+            }
+
             // if transit is List execute reader
             if (transit.ReturnObject is IList)
             {
-                var items = transit.ReturnObject as IList;
+                var items = (IList)transit.ReturnObject;
                 var accessor = TypeAccessor.Create(transit.ReturnType.GenericTypeArguments[0]);
-                _queryTime?.Start();
-                using (var reader = command.ExecuteReader())
-                {
-                    _queryTime?.Stop();
-                    int columns = reader.FieldCount;
-                    foreach (var record in reader.ToRecord())
-                    {
-                        var item = accessor.CreateNew();
-                        items?.Add(item);
-                        ExtractObject(columns, item, accessor, record);
-                    }
-                }
+                ExecuteReaderToList(items, accessor, command);
             }
-            // execute scalar. Can be Struct too
             else if (transit.ReturnObject != null)
             {
-                if (transit.ReturnType.IsClass == true)
-                {
-                    _queryTime?.Start();
-                    using (var reader = command.ExecuteReader())
-                    {
-                        _queryTime?.Stop();
-                        int columns = reader.FieldCount;
-                        var accessor = TypeAccessor.Create(transit.ReturnType);
-                        if (reader.Read() == true)
-                        {
-                            ExtractObject(columns, transit.ReturnObject, accessor, reader);
-                        }
-                    }
-                }
-                else
-                {
-                    transit.ReturnObject = command.ExecuteScalar();
-                }
+                // execute scalar. Can be Struct too
+                ExecuteWithSingleReturnValue(transit, command);
             }
-            // ExecuteNonQuery
             else
             {
-                _queryTime?.Start();
-                command.ExecuteNonQuery();
-                _queryTime?.Stop();
+                ExecuteNonQuery(command);
             }
         }
 
@@ -561,5 +466,85 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
                 accessor[item, name] = record.ReadObject(i);
             }
         }
+        /// <summary>
+        /// Use a list entry to create
+        /// </summary>
+        /// <param name="data"></param>
+        /// <param name="tAccessor"></param>
+        /// <param name="command"></param>
+        private void CreateRefScalarVariable(string name, object data, TypeAccessor tAccessor, IDbCommand command)
+        {
+            if (tAccessor != null)
+            {
+                foreach (var item in tAccessor.GetMembers())
+                {
+                    command.AddParameter(item.Name, tAccessor[data, item.Name]);
+                }
+            }
+            else
+            {
+                command.AddParameter(name, data);
+            }
+        }
+
+        #region Execution Helpers
+        /// <summary>
+        /// Execute SP with return value as non Enumerable
+        /// </summary>
+        /// <param name="transit">return value as reference value</param>
+        /// <param name="command">executive command</param>
+        private void ExecuteWithSingleReturnValue(TransitObject transit, IDbCommand command)
+        {
+            if (transit.ReturnType.IsClass && transit.ReturnType != typeof(string))
+            {
+                _queryTime?.Start();
+                using (var reader = command.ExecuteReader())
+                {
+                    _queryTime?.Stop();
+                    int columns = reader.FieldCount;
+                    var accessor = TypeAccessor.Create(transit.ReturnType);
+                    if (reader.Read())
+                    {
+                        ExtractObject(columns, transit.ReturnObject, accessor, reader);
+                    }
+                }
+            }
+            else
+            {
+                transit.ReturnObject = command.ExecuteScalar();
+            }
+        }
+        /// <summary>
+        /// Execute SP that return a result set
+        /// </summary>
+        /// <param name="items">return result set</param>
+        /// <param name="accessor">Type Accessor for a single item value</param>
+        /// <param name="command">executive command</param>
+        private void ExecuteReaderToList(IList items, TypeAccessor accessor, IDbCommand command)
+        {
+            _queryTime?.Start();
+            using (var reader = command.ExecuteReader())
+            {
+                _queryTime?.Stop();
+                int columns = reader.FieldCount;
+                foreach (var record in reader.ToRecord())
+                {
+                    var item = accessor.CreateNew();
+                    items?.Add(item);
+                    ExtractObject(columns, item, accessor, record);
+                }
+            }
+        }
+        /// <summary>
+        /// Execute NonQuery... without any return result
+        /// </summary>
+        /// <param name="command">executive command</param>
+        private void ExecuteNonQuery(IDbCommand command)
+        {
+            _queryTime?.Start();
+            command.ExecuteNonQuery();
+            _queryTime?.Stop();
+        }
+        #endregion
     }
 }
