@@ -18,6 +18,7 @@ namespace GenericDataAccessLayer.Core.Repository.StoredProcedure.Tests
         private DbCommand _realCommand;
         private IDbCommand _testCommand;
         private SomeEntity _returnValue;
+        private Fixture fixture;
 
         [TestInitialize]
         public void InitTest()
@@ -44,7 +45,7 @@ namespace GenericDataAccessLayer.Core.Repository.StoredProcedure.Tests
             reader.Read().Returns(a => counter-- > 0);
             _testCommand.ExecuteReader().Returns(reader);
 
-            var fixture = new Fixture();
+            fixture = new Fixture();
             _returnValue = fixture.Create<SomeEntity>();
 
             reader.GetValue(0).Returns(_returnValue.Id);
@@ -75,7 +76,6 @@ namespace GenericDataAccessLayer.Core.Repository.StoredProcedure.Tests
         {
             System.Console.WriteLine($"MIR: Query Time Execution: {_test.QueryExecutionTime} ticks, {_test.QueryExecutionTime / System.TimeSpan.TicksPerMillisecond} ms");
             System.Console.WriteLine($"MIR: Total Time Execution: {_test.TotalExecutionTime} ticks, {_test.TotalExecutionTime / System.TimeSpan.TicksPerMillisecond} ms");
-            BasicDbAccess.DisposeConnection();
             _realCommand?.Dispose();
         }
 
@@ -118,6 +118,29 @@ namespace GenericDataAccessLayer.Core.Repository.StoredProcedure.Tests
 
             Assert.AreEqual(_returnValue.Id, x.Id);
             Assert.AreEqual(_returnValue.Remark, x.Remark);
+        }
+
+        [TestMethod]
+        public void FilterForSomeTvpTest()
+        {
+            var ids = new List<SomeEntity>();
+            var remarks = new List<SomeEntity>();
+            fixture.AddManyTo(ids);
+            fixture.AddManyTo(remarks);
+            _test.FilterForSome(ids, remarks);
+        }
+
+        [TestMethod]
+        [ExpectedException(typeof(NotSupportedException))]
+        public void FilterForSomeTvpExceptionTest()
+        {
+            var ids = new List<int>();
+            var remarks = new List<string>();
+            fixture.AddManyTo(ids);
+            fixture.AddManyTo(remarks);
+            _test.Operations ^= LazyDal.RepositoryOperations.IgnoreException;
+            _test.FilterForSome(ids, remarks);
+            _test.Operations = LazyDal.RepositoryOperations.All;
         }
     }
 }

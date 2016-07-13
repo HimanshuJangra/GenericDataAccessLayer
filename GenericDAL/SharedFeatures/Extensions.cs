@@ -1,10 +1,8 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
 using System.Linq;
-using SharedComponents.Data;
 using Localization = L10n.Properties.Resources;
 
 namespace GenericDataAccessLayer.Core
@@ -23,6 +21,7 @@ namespace GenericDataAccessLayer.Core
         /// <param name="value">value that should pass to database</param>
         /// <param name="direction">optional value for direction. Default value is input. Can be used return or output parameter required</param>
         /// <param name="type">optional database type value. Dont use </param>
+        /// <param name="size">max length of current value</param>
         /// <returns>Created or updated parameter</returns>
         public static IDbDataParameter AddParameter<T>(this IDbCommand command, String parameterName, T value = default(T),
             ParameterDirection direction = ParameterDirection.Input, DbType? type = null, int? size = null)
@@ -97,16 +96,16 @@ namespace GenericDataAccessLayer.Core
         public static T ReadObject<T>(this IDataRecord reader, String columnName, T defaultValue = default(T))
         {
             int ordinal = reader.GetOrdinal(columnName);
-            return reader.ReadObject<T>(ordinal, defaultValue);
+            return reader.ReadObject(ordinal, defaultValue);
         }
 
-        public static DataRow AddCellValue(this System.Data.DataRow row, String name, Object value)
+        public static DataRow AddCellValue(this DataRow row, String name, Object value)
         {
             row[name] = value ?? DBNull.Value;
             return row;
         }
 
-        public static DataColumn AddColumn<T>(this System.Data.DataTable table, String name)
+        public static DataColumn AddColumn<T>(this DataTable table, String name)
         {
             var column = table.Columns.Add(name, typeof(T));
             column.AllowDBNull = true;
@@ -118,7 +117,7 @@ namespace GenericDataAccessLayer.Core
         {
             using (var reader = command.ExecuteReader())
             {
-                result.AddRange(reader.ToRecord().Select(record => getter(record)));
+                result.AddRange(reader.ToRecord().Select(getter));
             }
         }
         /// <summary>
@@ -130,7 +129,7 @@ namespace GenericDataAccessLayer.Core
         public static IEnumerable<IDataRecord> ToRecord(this IDataReader reader)
         {
             var enumerator = new DbEnumerator(reader);
-            while (enumerator.MoveNext() == true)
+            while (enumerator.MoveNext())
             {
                 yield return (IDataRecord)enumerator.Current;
             }

@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System.Collections;
+using System.Collections.Generic;
 using GenericDataAccessLayer.LazyDal;
 
 namespace UnitTests.Repository.StoredProcedure
@@ -10,5 +11,7 @@ namespace UnitTests.Repository.StoredProcedure
         void SaveSomeEntities(List<SomeEntity> items);
         List<SomeEntity> ReadSomeEntities();
         SomeEntity UpdateSomeEntity(int id, string remark);
+
+        List<SomeEntity> FilterForSome(IEnumerable include, IEnumerable exclude);
     }
 }

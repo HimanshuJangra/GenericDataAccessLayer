@@ -66,10 +66,35 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
         /// </summary>
         private ConnectionStringSettings _settings;
 
+        private ConnectionStringSettings Settings
+        {
+            get
+            {
+                if (_settings == null)
+                {
+                    _settings = ConfigurationManager.ConnectionStrings[_connectionStringSettings];
+                }
+
+                return _settings;
+            }
+        }
+
         /// <summary>
         /// Provider Factory that we need to create connection
         /// </summary>
         private System.Data.Common.DbProviderFactory _factory;
+
+        private System.Data.Common.DbProviderFactory Factory
+        {
+            get
+            {
+                if (_factory == null)
+                {
+                    _factory = System.Data.Common.DbProviderFactories.GetFactory(Settings.ProviderName);
+                }
+                return _factory;
+            }
+        }
 
         /// <summary>
         /// Watch for query execution time
@@ -92,25 +117,19 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
             {
                 if (_connection == null)
                 {
-                    _connection = _factory.CreateConnection();
-                    _connection.ConnectionString = _settings.ConnectionString;
-                    _connection.Open();
+                    _connection = Factory.CreateConnection();
                 }
-                else if (_connection.State == ConnectionState.Closed || _connection.State == ConnectionState.Broken)
+                if (string.IsNullOrEmpty(_connection.ConnectionString))
+                {
+                    _connection.ConnectionString = Settings.ConnectionString;
+                }
+
+                if (_connection.State == ConnectionState.Closed || _connection.State == ConnectionState.Broken)
                 {
                     _connection.Open();
                 }
 
                 return _connection;
-            }
-        }
-
-        private void ConfigureDbAccess()
-        {
-            if (_connection == null)
-            {
-                _settings = ConfigurationManager.ConnectionStrings[_connectionStringSettings];
-                _factory = System.Data.Common.DbProviderFactories.GetFactory(_settings.ProviderName);
             }
         }
 
@@ -132,8 +151,8 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
             }
 
             transit.CommandText = methodInfo.Name;
-
-            transit.ReturnObject = transit.ReturnType == typeof(void) ? null : Activator.CreateInstance(transit.ReturnType);
+            
+            transit.ReturnObject = transit.ReturnType == typeof(void) || transit.ReturnType == typeof(string) ? null : Activator.CreateInstance(transit.ReturnType);
         }
 
         /// <summary>Processes an invocation on a target.</summary>
@@ -183,6 +202,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
             else if (methodInfo.Name == $"set_{nameof(IRepository.Operations)}")
             {
                 _operations = (RepositoryOperations)parameters[0];
+                InitWatches();
             }
             else if (methodInfo.Name == $"get_{nameof(IRepository.Operations)}")
             {
@@ -194,7 +214,6 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
                 _totalTime?.Start();
                 try
                 {
-                    ConfigureDbAccess();
                     var transit = new TransitObject();
                     PrepareInitialization(transit, methodInfo, parameters);
 
@@ -228,7 +247,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
             {
                 _queryTime = new Stopwatch();
             }
-            else if (_operations.HasFlag(RepositoryOperations.LogQueryExecutionTime) == false && _queryTime != null)
+            else if (_operations.HasFlag(RepositoryOperations.LogQueryExecutionTime) == false)
             {
                 _queryTime = null;
             }
@@ -237,7 +256,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
             {
                 _totalTime = new Stopwatch();
             }
-            else if (_operations.HasFlag(RepositoryOperations.LogTotalExecutionTime) == false && _totalTime != null)
+            else if (_operations.HasFlag(RepositoryOperations.LogTotalExecutionTime) == false)
             {
                 _totalTime = null;
             }
@@ -253,7 +272,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
             {
                 _queryTime?.Stop();
             }
-            return false;
+            return _operations.HasFlag(RepositoryOperations.IgnoreException);
         }
 
         /// <summary>
@@ -269,35 +288,19 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
             {
                 IEnumerable data = value as IEnumerable;
                 var dataType = data.GetType().GenericTypeArguments[0];
-                var tAccessor = TypeAccessor.Create(dataType);
 
                 if (_operations.HasFlag(RepositoryOperations.UseTableValuedParameter))
                 {
                     var table = new DataTable();
 
-                    foreach (var column in tAccessor.GetMembers())
+                    if (dataType.IsClass && dataType != typeof(string))
                     {
-                        var correctColumnType = column.Type;
-                        // attention, DataColumn cannot handle nullables
-                        if (correctColumnType.IsGenericType && correctColumnType.GetGenericTypeDefinition() == typeof(Nullable<>))
-                        {
-                            correctColumnType = column.Type.GenericTypeArguments[0];
-                        }
-                        // nested reference types are not supported, right now
-                        if (column.Type != typeof(string) && column.Type.IsClass)
-                        {
-                            throw new NotSupportedException(nameof(Resources.DA003));
-                        }
-                        table.Columns.Add(new DataColumn(column.Name, correctColumnType));
+                        var reader = new ObjectReader(dataType, data);
+                        table.Load(reader);
                     }
-                    foreach (var entry in data)
+                    else
                     {
-                        var row = table.NewRow();
-                        table.Rows.Add(row);
-                        foreach (var columnItem in tAccessor.GetMembers())
-                        {
-                            row.AddCellValue(columnItem.Name, tAccessor[entry, columnItem.Name]);
-                        }
+                        throw new NotSupportedException();
                     }
                     command.AddParameter(parameterName, table);
                 }
@@ -318,7 +321,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
                 ParameterDirection direction = ParameterDirection.Input;
                 if (pi.IsOut && pi.IsIn == false)
                     direction = ParameterDirection.Output;
-                else if (pi.IsOut && pi.IsIn)
+                else if (pi.ParameterType.IsByRef)
                     direction = ParameterDirection.InputOutput;
                 int? size = null;
 
@@ -328,7 +331,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
                 }
                 var parameter = command.AddParameter(pi.Name, item.Value, direction, size: size);
 
-                if (pi.IsOut)
+                if (pi.IsOut || pi.ParameterType.IsByRef)
                 {
                     transit.Outputs.Add(pi, parameter);
                 }
@@ -364,7 +367,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
         private void ExecuteSingleItem(TransitObject transit, IDbCommand command)
         {
             // do not allow cartesian product
-            var collection = transit.Parameters.Where(a => a.Value is ICollection).ToList();
+            var collection = transit.Parameters.Where(a => a.Value is ICollection).Select(a=> new KeyValuePair<ParameterInfo, ICollection>(a.Key, (ICollection)a.Value)).ToList();
             if (_operations.HasFlag(RepositoryOperations.UseTableValuedParameter) == false &&
                 collection.Count > 1 &&
                 (transit.ReturnObject is IList) == false)
@@ -380,12 +383,13 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
                 
                 if (collection.Count > 0)
                 {
-                    var genericType = collection[0].Value.GetType().GenericTypeArguments[0];
+                    var first = collection.First();
+                    var genericType = first.Value.GetType().GenericTypeArguments[0];
                     TypeAccessor listType = genericType.IsClass && genericType != typeof(string) ? TypeAccessor.Create(genericType) : null;
 
-                    foreach (var item in collection)
+                    foreach (var item in first.Value)
                     {
-                        CreateRefScalarVariable(item.Key.Name, item.Value, listType, command);
+                        CreateRefScalarVariable(first.Key.Name, item, listType, command);
                         ExecuteReaderToList(items, accessor, command);
                     }
                 }
@@ -395,7 +399,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
                 }
             }
             // execute scalar. Can be Struct too
-            else if (transit.ReturnObject != null)
+            else if (transit.ReturnObject != null || transit.ReturnType == typeof(string))
             {
                 ExecuteWithSingleReturnValue(transit, command);
             }
@@ -404,12 +408,12 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
             {
                 if (collection.Count > 0)
                 {
-                    var genericType = collection[0].Value.GetType().GenericTypeArguments[0];
+                    var genericType = collection.First().Value.GetType().GenericTypeArguments[0];
                     TypeAccessor listType = genericType.IsClass && genericType != typeof(string) ? TypeAccessor.Create(genericType) : null;
 
-                    foreach (var item in collection)
+                    foreach (var item in collection.First().Value)
                     {
-                        CreateRefScalarVariable(item.Key.Name, item.Value, listType, command);
+                        CreateRefScalarVariable(genericType.Name, item, listType, command);
                         ExecuteNonQuery(command);
                     }
                 }
@@ -466,9 +470,11 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
                 accessor[item, name] = record.ReadObject(i);
             }
         }
+
         /// <summary>
         /// Use a list entry to create
         /// </summary>
+        /// <param name="name">name of the single entry, if enumerable is a string or struct</param>
         /// <param name="data"></param>
         /// <param name="tAccessor"></param>
         /// <param name="command"></param>
@@ -511,7 +517,9 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
             }
             else
             {
+                _queryTime?.Start();
                 transit.ReturnObject = command.ExecuteScalar();
+                _queryTime?.Stop();
             }
         }
         /// <summary>
@@ -530,7 +538,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
                 foreach (var record in reader.ToRecord())
                 {
                     var item = accessor.CreateNew();
-                    items?.Add(item);
+                    items.Add(item);
                     ExtractObject(columns, item, accessor, record);
                 }
             }

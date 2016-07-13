@@ -9,8 +9,6 @@ namespace GenericDataAccessLayer.Core
 {
     static partial class Extensions
     {
-
-
         public static void IntoList<T>(this List<T> result, IDataReader reader, Action<T, IDataRecord> eachItem)
             where T : class, IDataTransferObject
         {

@@ -82,6 +82,7 @@
     <Compile Include="Repository\StoredProcedure\SomeEntity.cs" />
     <Compile Include="SingleItemProcessor\SomeEntity.cs" />
     <Compile Include="SingleItemProcessor\SomeEntityDal.cs" />
+    <Compile Include="StoredProcedure\BasicsGenericDalInterceptorTests.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\DalCore\DalCore.csproj">

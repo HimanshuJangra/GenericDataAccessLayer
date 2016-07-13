@@ -61,12 +61,16 @@ namespace GenericDataAccessLayer.LazyDal
         /// </summary>
         LogQueryExecutionTime = 4,
         /// <summary>
+        /// Any exception that happens during stored procedure execution will be ignored
+        /// </summary>
+        IgnoreException = 8,
+        /// <summary>
         /// Init only Log Execution watches
         /// </summary>
         TimeLoggerOnly = LogTotalExecutionTime | LogQueryExecutionTime,
         /// <summary>
         /// Include all operations
         /// </summary>
-        All = UseTableValuedParameter | LogTotalExecutionTime | LogQueryExecutionTime
+        All = UseTableValuedParameter | LogTotalExecutionTime | LogQueryExecutionTime | IgnoreException
     }
 }
