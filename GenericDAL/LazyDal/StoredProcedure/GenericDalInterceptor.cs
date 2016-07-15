@@ -37,6 +37,10 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
             /// list of output parameters that should write to "out"
             /// </summary>
             public readonly Dictionary<ParameterInfo, IDataParameter> Outputs = new Dictionary<ParameterInfo, IDataParameter>();
+            /// <summary>
+            /// cache all referece types (class) that are used as Output Or RefBy
+            /// </summary>
+            public readonly List<RefScalarVariables> Refernces = new List<RefScalarVariables>();
 
             /// <summary>
             /// Name of Stored Procedure
@@ -60,6 +64,11 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
         private string _connectionStringSettings = "DefaultConnection";
 
         private RepositoryOperations _operations = RepositoryOperations.None;
+
+        /// <summary>
+        /// Default naming convention for TVP variables
+        /// </summary>
+        private string _tvpNameConvention = "{0}TVP";
 
         /// <summary>
         /// Configuration Setting for Connection String
@@ -124,7 +133,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
                     _connection.ConnectionString = Settings.ConnectionString;
                 }
 
-                if (_connection.State == ConnectionState.Closed || _connection.State == ConnectionState.Broken)
+                if ((ConnectionState.Closed | ConnectionState.Broken).HasFlag(_connection.State))
                 {
                     _connection.Open();
                 }
@@ -151,7 +160,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
             }
 
             transit.CommandText = methodInfo.Name;
-            
+
             transit.ReturnObject = transit.ReturnType == typeof(void) || transit.ReturnType == typeof(string) ? null : Activator.CreateInstance(transit.ReturnType);
         }
 
@@ -191,6 +200,14 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
             {
                 result = Connection;
             }
+            else if (methodInfo.Name == $"set_{nameof(IRepository.TvpNameConvension)}")
+            {
+                _tvpNameConvention = parameters[0]?.ToString();
+            }
+            else if (methodInfo.Name == $"get_{nameof(IRepository.TvpNameConvension)}")
+            {
+                result = _tvpNameConvention;
+            }
             else if (methodInfo.Name == $"get_{nameof(IRepository.QueryExecutionTime)}")
             {
                 result = _queryTime?.ElapsedTicks;
@@ -211,6 +228,8 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
             else
             {
                 InitWatches();
+                _totalTime?.Reset();
+                _queryTime?.Reset();
                 _totalTime?.Start();
                 try
                 {
@@ -227,6 +246,11 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
                     foreach (var item in transit.Outputs)
                     {
                         parameters[item.Key.Position] = item.Value.Value;
+                    }
+
+                    foreach (var item in transit.Refernces)
+                    {
+                        item.WriteBack(parameters);
                     }
 
                     result = transit.ReturnObject;
@@ -286,24 +310,21 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
         {
             if (value is ICollection)
             {
-                IEnumerable data = value as IEnumerable;
+                var data = (ICollection)value;
                 var dataType = data.GetType().GenericTypeArguments[0];
 
-                if (_operations.HasFlag(RepositoryOperations.UseTableValuedParameter))
-                {
-                    var table = new DataTable();
+                var table = new DataTable(string.Format(_tvpNameConvention, dataType.Name));
 
-                    if (dataType.IsClass && dataType != typeof(string))
-                    {
-                        var reader = new ObjectReader(dataType, data);
-                        table.Load(reader);
-                    }
-                    else
-                    {
-                        throw new NotSupportedException();
-                    }
-                    command.AddParameter(parameterName, table);
+                if (dataType.IsClass && dataType != typeof(string))
+                {
+                    var reader = new ObjectReader(dataType, data);
+                    table.Load(reader);
                 }
+                else
+                {
+                    throw new NotSupportedException();
+                }
+                command.AddParameter(parameterName, table);
             }
         }
         /// <summary>
@@ -315,7 +336,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
         {
             Type refString = Type.GetType("System.String&");
             // fill the parameters
-            foreach (var item in transit.Parameters.Where(a => a.Key.ParameterType.GenericTypeArguments.Length == 0))
+            foreach (var item in transit.Parameters.Where(a => a.Value.GetType().GenericTypeArguments.Length == 0))
             {
                 ParameterInfo pi = item.Key;
                 ParameterDirection direction = ParameterDirection.Input;
@@ -323,17 +344,27 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
                     direction = ParameterDirection.Output;
                 else if (pi.ParameterType.IsByRef)
                     direction = ParameterDirection.InputOutput;
-                int? size = null;
 
-                if (pi.ParameterType.In(typeof(string), refString))
+                var type = item.Value?.GetType() ?? pi.ParameterType;
+
+                if (type.IsClass && type.In(typeof(string), refString) == false)
                 {
-                    size = -1;
+                    CreateRefScalarVariable(transit, item.Key.Position, type, item.Value, command, direction);
                 }
-                var parameter = command.AddParameter(pi.Name, item.Value, direction, size: size);
-
-                if (pi.IsOut || pi.ParameterType.IsByRef)
+                else
                 {
-                    transit.Outputs.Add(pi, parameter);
+                    int? size = null;
+
+                    if (pi.ParameterType.In(typeof(string), refString))
+                    {
+                        size = -1;
+                    }
+                    var parameter = command.AddParameter(pi.Name, item.Value, direction, size: size);
+
+                    if (pi.IsOut || pi.ParameterType.IsByRef)
+                    {
+                        transit.Outputs.Add(pi, parameter);
+                    }
                 }
             }
             command.CommandType = CommandType.StoredProcedure;
@@ -367,7 +398,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
         private void ExecuteSingleItem(TransitObject transit, IDbCommand command)
         {
             // do not allow cartesian product
-            var collection = transit.Parameters.Where(a => a.Value is ICollection).Select(a=> new KeyValuePair<ParameterInfo, ICollection>(a.Key, (ICollection)a.Value)).ToList();
+            var collection = transit.Parameters.Where(a => a.Value is ICollection).Select(a => new KeyValuePair<ParameterInfo, ICollection>(a.Key, (ICollection)a.Value)).ToList();
             if (_operations.HasFlag(RepositoryOperations.UseTableValuedParameter) == false &&
                 collection.Count > 1 &&
                 (transit.ReturnObject is IList) == false)
@@ -380,7 +411,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
             {
                 var items = (IList)transit.ReturnObject;
                 var accessor = TypeAccessor.Create(transit.ReturnType.GenericTypeArguments[0]);
-                
+
                 if (collection.Count > 0)
                 {
                     var first = collection.First();
@@ -471,6 +502,28 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
             }
         }
 
+        private void CreateRefScalarVariable(TransitObject transit, int index, Type type, object data, IDbCommand command, ParameterDirection direction)
+        {
+            var tAccessor = TypeAccessor.Create(type);
+            RefScalarVariables result = null;
+            if (direction == ParameterDirection.InputOutput || direction == ParameterDirection.Output)
+            {
+                transit.Refernces.Add(result = new RefScalarVariables
+                {
+                    Direction = direction,
+                    Index = index,
+                    Value = data,
+                    Accessor = tAccessor
+                });
+            }
+            foreach (var item in tAccessor.GetMembers())
+            {
+                object value = direction == ParameterDirection.Output ? null : tAccessor[data, item.Name];
+                var parameter = command.AddParameter(item.Name, value, direction);
+                result?.Parameters.Add(parameter);
+            }
+        }
+
         /// <summary>
         /// Use a list entry to create
         /// </summary>
@@ -490,6 +543,52 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
             else
             {
                 command.AddParameter(name, data);
+            }
+        }
+        /// <summary>
+        /// Handle Reference scalars variables. Only usefull for Output and InputOutput Parameters
+        /// </summary>
+        private class RefScalarVariables
+        {
+            /// <summary>
+            /// Direction of the parameter
+            /// </summary>
+            public ParameterDirection Direction;
+            /// <summary>
+            /// Parameter Information
+            /// </summary>
+            public int Index;
+            /// <summary>
+            /// Parameter Value
+            /// </summary>
+            public object Value;
+            /// <summary>
+            /// Current Parameter
+            /// </summary>
+            public readonly List<IDataParameter> Parameters = new List<IDataParameter>();
+            /// <summary>
+            /// Type Accessor the we need to write back parameter to reference type
+            /// </summary>
+            public TypeAccessor Accessor { private get; set; }
+
+            public void WriteBack(object[] parameters)
+            {
+                if (Direction == ParameterDirection.Input || Direction == ParameterDirection.ReturnValue)
+                {
+                    return;
+                }
+
+                if (Value == null && Direction == ParameterDirection.Output)
+                {
+                    Value = Accessor.CreateNew();
+                }
+                
+                foreach (var item in Parameters)
+                {
+                    Accessor[Value, item.ParameterName] = item.Value;
+                }
+
+                parameters[Index] = Value;
             }
         }
 

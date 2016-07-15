@@ -37,6 +37,10 @@ namespace GenericDataAccessLayer.LazyDal
         /// Enable or disable some key features
         /// </summary>
         RepositoryOperations Operations { get; set; }
+        /// <summary>
+        /// Name Convension of the TVP. Default: {0}TVP
+        /// </summary>
+        string TvpNameConvension { get; set; }
     }
     /// <summary>
     /// Additional operations for Repository
@@ -57,7 +61,7 @@ namespace GenericDataAccessLayer.LazyDal
         /// </summary>
         LogTotalExecutionTime = 2,
         /// <summary>
-        /// Log Database Execution Time. Combined Time for all passed 
+        /// Log Database Execution Time.
         /// </summary>
         LogQueryExecutionTime = 4,
         /// <summary>
