@@ -25,7 +25,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure.Tests
         [TestMethod]
         public void ChangeConnectionSettings_1()
         {
-            using (var repository = DynamicRepository.CreateDynamic<ExecutionTest>())
+            using (var repository = DynamicRepository.Create<ExecutionTest>())
             {
                 string conSettings = "Test";
                 repository.ConnectionStringSettings = conSettings;
@@ -39,7 +39,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure.Tests
         public void ChangeConnectionSettings_2()
         {
             string conSettings = "Test";
-            using (ExecutionTest repository = DynamicRepository.CreateDynamic<ExecutionTest>())
+            using (ExecutionTest repository = DynamicRepository.Create<ExecutionTest>())
             {
                 var connection = repository.Connection;
                 repository.ConnectionStringSettings = conSettings;
@@ -51,7 +51,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure.Tests
         [TestMethod]
         public void Operations()
         {
-            var repository = DynamicRepository.CreateDynamic<ExecutionTest>();
+            var repository = DynamicRepository.Create<ExecutionTest>();
             Assert.AreEqual(repository.Operations, RepositoryOperations.None);
             repository.Operations = RepositoryOperations.TimeLoggerOnly;
             Assert.AreEqual(repository.QueryExecutionTime, 0);
@@ -74,7 +74,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure.Tests
         [TestMethod]
         public void SaveSirTest()
         {
-            using (var repository = DynamicRepository.CreateDynamic<MockRepository>())
+            using (var repository = DynamicRepository.Create<MockRepository>())
             {
                 var fixture = new Fixture();
 
@@ -152,7 +152,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure.Tests
         [TestMethod]
         public void SimpleInvokeWithException()
         {
-            using (MockRepository repository = DynamicRepository.CreateDynamic<MockRepository>())
+            using (MockRepository repository = DynamicRepository.Create<MockRepository>())
             {
                 repository.Operations = RepositoryOperations.LogQueryExecutionTime;
                 var command = Substitute.For<IDbCommand>();
@@ -180,7 +180,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure.Tests
         [TestMethod]
         public void SimpleInvokeWithoutWatches()
         {
-            var repository = DynamicRepository.CreateDynamic<MockRepository>();
+            var repository = DynamicRepository.Create<MockRepository>();
 
             var factory = DbProviderFactories.GetFactory("System.Data.SqlClient");
             // using castle proxy to create 

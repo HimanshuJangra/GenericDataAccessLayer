@@ -13,8 +13,8 @@ namespace UnitTests.Repository.StoredProcedure
     [TestClass]
     public class GenericDalInterceptorE2ETests
     {
-        private static ExecutionTest _testTvp = DynamicRepository.CreateDynamic<ExecutionTest>();
-        private static ExecutionTest _test = DynamicRepository.CreateDynamic<ExecutionTest>();
+        private static ExecutionTest _testTvp = DynamicRepository.Create<ExecutionTest>();
+        private static ExecutionTest _test = DynamicRepository.Create<ExecutionTest>();
 
 
         [ClassInitialize]

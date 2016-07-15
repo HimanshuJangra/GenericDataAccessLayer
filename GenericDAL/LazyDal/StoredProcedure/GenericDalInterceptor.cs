@@ -160,8 +160,9 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
             }
 
             transit.CommandText = methodInfo.Name;
-
-            transit.ReturnObject = transit.ReturnType == typeof(void) || transit.ReturnType == typeof(string) ? null : Activator.CreateInstance(transit.ReturnType);
+            var retType = transit.ReturnType;
+            transit.ReturnObject = retType == typeof(void) || retType == typeof(string) || retType.IsArray ? null
+                : Activator.CreateInstance(transit.ReturnType);
         }
 
         /// <summary>Processes an invocation on a target.</summary>
@@ -235,10 +236,10 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
                 {
                     var transit = new TransitObject();
                     PrepareInitialization(transit, methodInfo, parameters);
-
-                    using (var command = Connection.CreateCommand())
+                    var connection = Connection;
+                    using (var command = connection.CreateCommand())
                     {
-                        command.Connection = Connection;
+                        command.Connection = connection;
                         Execute(transit, command);
                     }
 
@@ -407,10 +408,20 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
             }
             PrepareExecute(transit, command);
             // if transit is List execute reader
-            if (transit.ReturnObject is IList)
+            if (transit.ReturnObject is IList || transit.ReturnType.IsArray)
             {
-                var items = (IList)transit.ReturnObject;
-                var accessor = TypeAccessor.Create(transit.ReturnType.GenericTypeArguments[0]);
+                IList items = null;
+                TypeAccessor accessor = null;
+                if (transit.ReturnType.IsArray)
+                {
+                    items = new ArrayList();
+                    accessor = TypeAccessor.Create(transit.ReturnType.GetElementType());
+                }
+                else
+                {
+                    items = (IList)transit.ReturnObject;
+                    accessor = TypeAccessor.Create(transit.ReturnType.GenericTypeArguments[0]);
+                }
 
                 if (collection.Count > 0)
                 {
@@ -427,6 +438,11 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
                 else
                 {
                     ExecuteReaderToList(items, accessor, command);
+                }
+
+                if (transit.ReturnType.IsArray)
+                {
+                    transit.ReturnObject = ((ArrayList)items).ToArray();
                 }
             }
             // execute scalar. Can be Struct too
@@ -473,6 +489,13 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
                 var items = (IList)transit.ReturnObject;
                 var accessor = TypeAccessor.Create(transit.ReturnType.GenericTypeArguments[0]);
                 ExecuteReaderToList(items, accessor, command);
+            }
+            else if (transit.ReturnType.IsArray)
+            {
+                var items = new ArrayList();
+                var accessor = TypeAccessor.Create(transit.ReturnType.GetElementType());
+                ExecuteReaderToList(items, accessor, command);
+                transit.ReturnObject = items.ToArray();
             }
             else if (transit.ReturnObject != null)
             {
@@ -582,7 +605,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
                 {
                     Value = Accessor.CreateNew();
                 }
-                
+
                 foreach (var item in Parameters)
                 {
                     Accessor[Value, item.ParameterName] = item.Value;
@@ -608,9 +631,12 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
                     _queryTime?.Stop();
                     int columns = reader.FieldCount;
                     var accessor = TypeAccessor.Create(transit.ReturnType);
-                    if (reader.Read())
+                    foreach (var record in reader.ToRecord())
                     {
-                        ExtractObject(columns, transit.ReturnObject, accessor, reader);
+                        var item = accessor.CreateNew();
+                        ExtractObject(columns, item, accessor, record);
+                        transit.ReturnObject = item;
+                        break;
                     }
                 }
             }

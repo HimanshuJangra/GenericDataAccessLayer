@@ -15,7 +15,7 @@ namespace GenericDataAccessLayer.LazyDal.Repository
         /// </summary>
         /// <typeparam name="TRepository">Dynamic repository Interface, that contains only definition of the Stored Procedure</typeparam>
         /// <returns>Intercepted Repository</returns>
-        public static TRepository CreateDynamic<TRepository>()
+        public static TRepository Create<TRepository>()
             where TRepository : class, IRepository
         {
             return new ProxyFactory().CreateProxy<TRepository>(Type.EmptyTypes, new GenericDalInterceptor());
