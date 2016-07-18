@@ -24,14 +24,14 @@ namespace GenericDataAccessLayer.LazyDal
         IDbConnection Connection { get; set; }
 
         /// <summary>
-        /// Total time for query execution in ms
+        /// Total time for query execution
         /// </summary>
-        long? QueryExecutionTime { get; }
+        TimeSpan? QueryExecutionTime { get; }
 
         /// <summary>
         /// Execution time for total process
         /// </summary>
-        long? TotalExecutionTime { get; }
+        TimeSpan? TotalExecutionTime { get; }
 
         /// <summary>
         /// Enable or disable some key features

@@ -27,10 +27,10 @@ namespace UnitTests.Repository.StoredProcedure
         [ClassCleanup]
         public static void Clean()
         {
-            System.Console.WriteLine($"SIR: Query Time Execution: {_test.QueryExecutionTime} ticks, {_test.QueryExecutionTime / System.TimeSpan.TicksPerMillisecond} ms");
-            System.Console.WriteLine($"SIR: Total Time Execution: {_test.TotalExecutionTime} ticks, {_test.TotalExecutionTime / System.TimeSpan.TicksPerMillisecond} ms");
-            System.Console.WriteLine($"MIR: Query Time Execution: {_testTvp.QueryExecutionTime} ticks, {_testTvp.QueryExecutionTime / System.TimeSpan.TicksPerMillisecond} ms");
-            System.Console.WriteLine($"MIR: Total Time Execution: {_testTvp.TotalExecutionTime} ticks, {_testTvp.TotalExecutionTime / System.TimeSpan.TicksPerMillisecond} ms");
+            System.Console.WriteLine($"SIR: Query Time Execution: {_test.QueryExecutionTime}");
+            System.Console.WriteLine($"SIR: Total Time Execution: {_test.TotalExecutionTime}");
+            System.Console.WriteLine($"MIR: Query Time Execution: {_testTvp.QueryExecutionTime}");
+            System.Console.WriteLine($"MIR: Total Time Execution: {_testTvp.TotalExecutionTime}");
             _test?.Dispose();
             _testTvp?.Dispose();
         }

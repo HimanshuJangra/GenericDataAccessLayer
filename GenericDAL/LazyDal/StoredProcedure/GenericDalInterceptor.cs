@@ -161,8 +161,18 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
 
             transit.CommandText = methodInfo.Name;
             var retType = transit.ReturnType;
-            transit.ReturnObject = retType == typeof(void) || retType == typeof(string) || retType.IsArray ? null
-                : Activator.CreateInstance(transit.ReturnType);
+            
+            if (retType.In(typeof(void), typeof(string)) == false)
+            {
+                if (retType.IsArray || typeof(IEnumerable).IsAssignableFrom(retType))
+                {
+                    transit.ReturnObject = new ArrayList();
+                }
+                else
+                {
+                    transit.ReturnObject = Activator.CreateInstance(transit.ReturnType);
+                }
+            }
         }
 
         /// <summary>Processes an invocation on a target.</summary>
@@ -211,11 +221,11 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
             }
             else if (methodInfo.Name == $"get_{nameof(IRepository.QueryExecutionTime)}")
             {
-                result = _queryTime?.ElapsedTicks;
+                result = _queryTime?.Elapsed;
             }
             else if (methodInfo.Name == $"get_{nameof(IRepository.TotalExecutionTime)}")
             {
-                result = _totalTime?.ElapsedTicks;
+                result = _totalTime?.Elapsed;
             }
             else if (methodInfo.Name == $"set_{nameof(IRepository.Operations)}")
             {
@@ -370,7 +380,6 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
             }
             command.CommandType = CommandType.StoredProcedure;
             command.CommandText = transit.CommandText;
-            command.Prepare();
         }
 
 
@@ -407,26 +416,27 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
                 throw new NotSupportedException(nameof(Resources.DA004));
             }
             PrepareExecute(transit, command);
+            bool isArrayOrEnumerable = transit.ReturnType.IsArray || typeof(IEnumerable).IsAssignableFrom(transit.ReturnType);
             // if transit is List execute reader
-            if (transit.ReturnObject is IList || transit.ReturnType.IsArray)
+            if (transit.ReturnObject is IList || isArrayOrEnumerable)
             {
                 IList items = null;
                 TypeAccessor accessor = null;
                 if (transit.ReturnType.IsArray)
                 {
-                    items = new ArrayList();
                     accessor = TypeAccessor.Create(transit.ReturnType.GetElementType());
                 }
                 else
                 {
-                    items = (IList)transit.ReturnObject;
                     accessor = TypeAccessor.Create(transit.ReturnType.GenericTypeArguments[0]);
                 }
+                items = (IList)transit.ReturnObject;
 
                 if (collection.Count > 0)
                 {
                     var first = collection.First();
-                    var genericType = first.Value.GetType().GenericTypeArguments[0];
+                    var valueType = first.Value.GetType();
+                    var genericType = valueType.IsArray ? valueType.GetElementType() : valueType.GenericTypeArguments[0];
                     TypeAccessor listType = genericType.IsClass && genericType != typeof(string) ? TypeAccessor.Create(genericType) : null;
 
                     foreach (var item in first.Value)
@@ -484,18 +494,18 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
             }
 
             // if transit is List execute reader
-            if (transit.ReturnObject is IList)
+            if (transit.ReturnType.IsArray || (true.In(transit.ReturnType.IsInterface, transit.ReturnType.IsAbstract) && typeof(IEnumerable).IsAssignableFrom(transit.ReturnType)))
+            {
+                TypeAccessor accessor = TypeAccessor.Create(transit.ReturnType.IsArray ? transit.ReturnType.GetElementType() : transit.ReturnType.GenericTypeArguments[0]);
+                var items = transit.ReturnObject as ArrayList;
+                ExecuteReaderToList(items, accessor, command);
+                transit.ReturnObject = items.ToArray();
+            }
+            else if (transit.ReturnObject is IList)
             {
                 var items = (IList)transit.ReturnObject;
                 var accessor = TypeAccessor.Create(transit.ReturnType.GenericTypeArguments[0]);
                 ExecuteReaderToList(items, accessor, command);
-            }
-            else if (transit.ReturnType.IsArray)
-            {
-                var items = new ArrayList();
-                var accessor = TypeAccessor.Create(transit.ReturnType.GetElementType());
-                ExecuteReaderToList(items, accessor, command);
-                transit.ReturnObject = items.ToArray();
             }
             else if (transit.ReturnObject != null)
             {
@@ -623,6 +633,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
         /// <param name="command">executive command</param>
         private void ExecuteWithSingleReturnValue(TransitObject transit, IDbCommand command)
         {
+            command.Prepare();
             if (transit.ReturnType.IsClass && transit.ReturnType != typeof(string))
             {
                 _queryTime?.Start();
@@ -655,6 +666,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
         /// <param name="command">executive command</param>
         private void ExecuteReaderToList(IList items, TypeAccessor accessor, IDbCommand command)
         {
+            command.Prepare();
             _queryTime?.Start();
             using (var reader = command.ExecuteReader())
             {
@@ -674,6 +686,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
         /// <param name="command">executive command</param>
         private void ExecuteNonQuery(IDbCommand command)
         {
+            command.Prepare();
             _queryTime?.Start();
             command.ExecuteNonQuery();
             _queryTime?.Stop();

@@ -74,8 +74,8 @@ namespace GenericDataAccessLayer.Core.Repository.StoredProcedure.Tests
         [TestCleanup]
         public void Cleanup()
         {
-            System.Console.WriteLine($"MIR: Query Time Execution: {_test.QueryExecutionTime} ticks, {_test.QueryExecutionTime / System.TimeSpan.TicksPerMillisecond} ms");
-            System.Console.WriteLine($"MIR: Total Time Execution: {_test.TotalExecutionTime} ticks, {_test.TotalExecutionTime / System.TimeSpan.TicksPerMillisecond} ms");
+            System.Console.WriteLine($"MIR: Query Time Execution: {_test.QueryExecutionTime}");
+            System.Console.WriteLine($"MIR: Total Time Execution: {_test.TotalExecutionTime}");
             _realCommand?.Dispose();
         }
 

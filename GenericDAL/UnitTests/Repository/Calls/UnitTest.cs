@@ -6,6 +6,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using NSubstitute;
 using Ploeh.AutoFixture;
 using System.Linq;
+using GenericDataAccessLayer.LazyDal;
 
 namespace UnitTests.Repository.Calls
 {
@@ -27,10 +28,9 @@ namespace UnitTests.Repository.Calls
             connection.CreateCommand().Returns(command);
         }
 
-        private void InitializeReaderForUser(IDbCommand command, params User[] users)
+        private IDataReader InitializeReaderForUser(IDbCommand command, params User[] users)
         {
             var reader = Substitute.For<IDataReader>();
-            int counter = 0;
             command.ExecuteReader().Returns(reader);
 
             User user = null;
@@ -71,6 +71,7 @@ namespace UnitTests.Repository.Calls
                 x[4] = user.Avatar;
                 return 5;
             });
+            return reader;
         }
 
         private void DefaultAsserts(IDbConnection connection, IDbCommand command)
@@ -79,9 +80,17 @@ namespace UnitTests.Repository.Calls
             connection.Received(1).CreateCommand();
         }
 
-        private void ExecuteNonQueryAssert(IDbCommand command)
+        private void ExecuteReaderAssert(IDbCommand command, int times)
         {
-            command.Received(1).ExecuteNonQuery();
+            command.DidNotReceive().ExecuteNonQuery();
+            command.Received(times).ExecuteReader();
+            command.DidNotReceive().ExecuteReader(Arg.Any<CommandBehavior>());
+            command.DidNotReceive().ExecuteScalar();
+        }
+
+        private void ExecuteNonQueryAssert(IDbCommand command, int times)
+        {
+            command.Received(times).ExecuteNonQuery();
             command.DidNotReceive().ExecuteReader();
             command.DidNotReceive().ExecuteReader(Arg.Any<CommandBehavior>());
             command.DidNotReceive().ExecuteScalar();
@@ -123,83 +132,141 @@ namespace UnitTests.Repository.Calls
             }
         }
 
-        private void GenericCreate(Action<TestRepository, IDbCommand> custom)
+        private void GenericCreate(Action<TestRepository, IDbCommand> custom, RepositoryOperations options)
         {
             TestRepository proxy;
             IDbConnection connection;
             IDbCommand command;
             InitializeProxy(out proxy, out connection, out command);
-
+            proxy.Operations = options;
             custom(proxy, command);
 
             DefaultAsserts(connection, command);
+
+            if (proxy.Operations.HasFlag(RepositoryOperations.LogQueryExecutionTime))
+            {
+                Console.WriteLine($"Query Execution Time: {proxy.QueryExecutionTime}");
+            }
+            if (proxy.Operations.HasFlag(RepositoryOperations.LogTotalExecutionTime))
+            {
+                Console.WriteLine($"Total Execution Time: {proxy.TotalExecutionTime}");
+            }
+        }
+
+        #region TestCore
+        private void CreateUserRef_Init(TestRepository proxy, IDbCommand command)
+        {
+            var testUser = _fixture.Create<User>();
+            testUser.IsActive = false;
+            int oldId = testUser.Id;
+
+            int newId = _fixture.Create<int>();
+            command.When(a => a.ExecuteNonQuery()).Do(a =>
+            {
+                command.Parameters.OfType<IDataParameter>().First(x => x.ParameterName == nameof(User.Id)).Value = newId;
+                command.Parameters.OfType<IDataParameter>().First(x => x.ParameterName == nameof(User.IsActive)).Value = true;
+            });
+
+            proxy.CreateUseRef(ref testUser);
+
+            Assert.AreEqual(nameof(proxy.CreateUseRef), command.CommandText);
+            Assert.AreNotEqual(oldId, testUser.Id);
+            Assert.IsTrue(testUser.IsActive);
+            ExecuteNonQueryAssert(command, 1);
+        }
+        private void CreateUseReturn_Init(TestRepository proxy, IDbCommand command)
+        {
+            var testUser = _fixture.Create<User>();
+            testUser.IsActive = false;
+            testUser.Id = 0;
+            var reader = InitializeReaderForUser(command, testUser);
+            var result = proxy.CreateUseReturn(testUser);
+
+            Assert.AreEqual(nameof(proxy.CreateUseReturn), command.CommandText);
+
+            Assert.AreNotEqual(testUser.Id, result.Id);
+            Assert.AreEqual(testUser.Avatar, result.Avatar);
+            Assert.AreEqual(testUser.Created, result.Created);
+            Assert.AreEqual(testUser.UserName, result.UserName);
+            Assert.IsTrue(result.IsActive);
+            reader.Received(1).Read();
+            ExecuteReaderAssert(command, 1);
+        }
+        private void UpdateUseArrayReturn_Init(TestRepository proxy, IDbCommand command)
+        {
+            var users = _fixture.CreateMany<User>().ToArray();
+            foreach (var item in users)
+            {
+                item.Id = 0;
+                item.IsActive = false;
+            }
+            InitializeReaderForUser(command, users);
+            var result = proxy.UpdateUseArrayReturn(users.ToList());
+
+            Assert.AreEqual(nameof(proxy.UpdateUseArrayReturn), command.CommandText);
+            Assert.AreEqual(result.Length, users.Length);
+            Assert.IsFalse(result.Any(a => a.Id == 0));
+            Assert.IsFalse(result.Any(a => a.IsActive == false));
+            var readerReceived = proxy.Operations.HasFlag(RepositoryOperations.UseTableValuedParameter) ? 1 : users.Length;
+            ExecuteReaderAssert(command, readerReceived);
+        }
+        private void ReadEnumerable_Init(TestRepository proxy, IDbCommand command)
+        {
+            var users = _fixture.CreateMany<User>(100000).ToArray();
+            var reader = InitializeReaderForUser(command, users);
+            var result = proxy.Read();
+            Assert.AreEqual(users.Length, result.Count());
+            ExecuteReaderAssert(command, 1);
+            reader.Received(users.Length + 1).Read();
+        }
+        #endregion
+
+        [TestMethod]
+        public void CreateUseReturn_NoOptions_Test()
+        {
+            GenericCreate(CreateUseReturn_Init, RepositoryOperations.None);
         }
 
         [TestMethod]
-        public void CreateUseRefTest()
+        public void CreateUseReturn_FullOptions_Test()
         {
-            GenericCreate((proxy, command) =>
-            {
-                var testUser = _fixture.Create<User>();
-                testUser.IsActive = false;
-                int oldId = testUser.Id;
-
-                int newId = _fixture.Create<int>();
-                command.When(a => a.ExecuteNonQuery()).Do(a =>
-                {
-                    command.Parameters.OfType<IDataParameter>().First(x => x.ParameterName == nameof(User.Id)).Value = newId;
-                    command.Parameters.OfType<IDataParameter>().First(x => x.ParameterName == nameof(User.IsActive)).Value = true;
-                });
-
-                proxy.CreateUseRef(ref testUser);
-
-                Assert.AreEqual(nameof(proxy.CreateUseRef), command.CommandText);
-                Assert.AreNotEqual(oldId, testUser.Id);
-                Assert.IsTrue(testUser.IsActive);
-                ExecuteNonQueryAssert(command);
-            });
+            GenericCreate(CreateUseReturn_Init, RepositoryOperations.All);
         }
 
         [TestMethod]
-        public void CreateUseReturn()
+        public void CreateUseRef_NoOptions_Test()
         {
-            GenericCreate((proxy, command) =>
-            {
-                var testUser = _fixture.Create<User>();
-                testUser.IsActive = false;
-                testUser.Id = 0;
-                InitializeReaderForUser(command, testUser);
-                var result = proxy.CreateUseReturn(testUser);
-
-                Assert.AreEqual(nameof(proxy.CreateUseReturn), command.CommandText);
-
-                Assert.AreNotEqual(testUser.Id, result.Id);
-                Assert.AreEqual(testUser.Avatar, result.Avatar);
-                Assert.AreEqual(testUser.Created, result.Created);
-                Assert.AreEqual(testUser.UserName, result.UserName);
-                Assert.IsTrue(result.IsActive);
-            });
+            GenericCreate(CreateUserRef_Init, RepositoryOperations.None);
         }
 
         [TestMethod]
-        public void CreateUseArrayReturn()
+        public void CreateUseRef_FullOptions_Test()
         {
-            GenericCreate((proxy, command) =>
-            {
-                var users = _fixture.CreateMany<User>().ToArray();
-                foreach (var item in users)
-                {
-                    item.Id = 0;
-                    item.IsActive = false;
-                }
-                InitializeReaderForUser(command, users);
-                var result = proxy.CreateUseArrayReturn(users.ToList());
+            GenericCreate(CreateUserRef_Init, RepositoryOperations.All);
+        }
 
-                Assert.AreEqual(nameof(proxy.CreateUseArrayReturn), command.CommandText);
-                Assert.AreEqual(result.Length, users.Length);
-                Assert.IsFalse(result.Any(a => a.Id == 0));
-                Assert.IsFalse(result.Any(a => a.IsActive == false));
-            });
+        [TestMethod]
+        public void UpdateUseArrayReturn_NoOptions_Test()
+        {
+            GenericCreate(UpdateUseArrayReturn_Init, RepositoryOperations.None);
+        }
+
+        [TestMethod]
+        public void UpdateUseArrayReturn_FullOptions_Test()
+        {
+            GenericCreate(UpdateUseArrayReturn_Init, RepositoryOperations.All);
+        }
+
+        [TestMethod]
+        public void ReadEnumerable_NoOptions_Test()
+        {
+            GenericCreate(ReadEnumerable_Init, RepositoryOperations.None);
+        }
+
+        [TestMethod]
+        public void ReadEnumerable_FullOptions_Test()
+        {
+            GenericCreate(ReadEnumerable_Init, RepositoryOperations.All);
         }
     }
 }

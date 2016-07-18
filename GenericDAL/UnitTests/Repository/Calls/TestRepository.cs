@@ -12,7 +12,10 @@ namespace UnitTests.Repository.Calls
         #region CRUD
         void CreateUseRef(ref User data);
         User CreateUseReturn(User data);
-        User[] CreateUseArrayReturn(List<User> data);
+        User[] UpdateUseArrayReturn(List<User> data);
+        IEnumerable<User> Read();
+        void Delete(IEnumerable<User> data);
+
         #endregion
     }
 }
