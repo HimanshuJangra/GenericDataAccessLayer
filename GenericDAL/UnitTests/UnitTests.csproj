@@ -84,13 +84,6 @@
     <Compile Include="Repository\Calls\TestRepository.cs" />
     <Compile Include="Repository\Calls\UnitTest.cs" />
     <Compile Include="Repository\Calls\User.cs" />
-    <Compile Include="Repository\StoredProcedure\ExecutionTest.cs" />
-    <Compile Include="Repository\StoredProcedure\GenericDalInterceptorTests.cs" />
-    <Compile Include="Repository\StoredProcedure\GenericDalInterceptorE2ETests.cs" />
-    <Compile Include="Repository\StoredProcedure\SomeEntity.cs" />
-    <Compile Include="SingleItemProcessor\SomeEntity.cs" />
-    <Compile Include="SingleItemProcessor\SomeEntityDal.cs" />
-    <Compile Include="StoredProcedure\BasicsGenericDalInterceptorTests.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\DalCore\DalCore.csproj">

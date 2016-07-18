@@ -212,12 +212,47 @@ namespace UnitTests.Repository.Calls
         }
         private void ReadEnumerable_Init(TestRepository proxy, IDbCommand command)
         {
-            var users = _fixture.CreateMany<User>(100000).ToArray();
+            var users = _fixture.CreateMany<User>(1000).ToArray();
             var reader = InitializeReaderForUser(command, users);
             var result = proxy.Read();
             Assert.AreEqual(users.Length, result.Count());
             ExecuteReaderAssert(command, 1);
             reader.Received(users.Length + 1).Read();
+        }
+        private void Get_Init(TestRepository proxy, IDbCommand command)
+        {
+            User user = null;
+            var resultUser = _fixture.Create<User>();
+            var accessor = FastMember.TypeAccessor.Create(typeof(User));
+            command.When(a => a.ExecuteNonQuery()).Do(a =>
+            {
+                foreach (var parameter in command.Parameters.OfType<IDataParameter>())
+                {
+                    parameter.Value = accessor[resultUser, parameter.ParameterName];
+                }
+            });
+            proxy.Get(out user);
+            foreach (var item in accessor.GetMembers())
+            {
+                Assert.AreEqual(accessor[resultUser, item.Name], accessor[user, item.Name]);
+            }
+            ExecuteNonQueryAssert(command, 1);
+        }
+        private void Update_Init(TestRepository proxy, IDbCommand command)
+        {
+            var resultUser = _fixture.Create<User>();
+            User user = new User { Id = resultUser.Id };
+            var accessor = FastMember.TypeAccessor.Create(typeof(User));
+            command.When(a => a.ExecuteNonQuery()).Do(a =>
+            {
+                foreach (var parameter in command.Parameters.OfType<IDataParameter>())
+                {
+                    parameter.Value = accessor[resultUser, parameter.ParameterName];
+                }
+            });
+            proxy.Update(ref resultUser);
+            Assert.AreEqual(user.Id, resultUser.Id);
+            ExecuteNonQueryAssert(command, 1);
         }
         #endregion
 
@@ -267,6 +302,30 @@ namespace UnitTests.Repository.Calls
         public void ReadEnumerable_FullOptions_Test()
         {
             GenericCreate(ReadEnumerable_Init, RepositoryOperations.All);
+        }
+
+        [TestMethod]
+        public void Get_NoOptions_Test()
+        {
+            GenericCreate(Get_Init, RepositoryOperations.None);
+        }
+
+        [TestMethod]
+        public void Get_FullOptions_Test()
+        {
+            GenericCreate(Get_Init, RepositoryOperations.All);
+        }
+
+        [TestMethod]
+        public void Update_NoOptions_Test()
+        {
+            GenericCreate(Update_Init, RepositoryOperations.None);
+        }
+
+        [TestMethod]
+        public void Update_FullOptions_Test()
+        {
+            GenericCreate(Update_Init, RepositoryOperations.All);
         }
     }
 }

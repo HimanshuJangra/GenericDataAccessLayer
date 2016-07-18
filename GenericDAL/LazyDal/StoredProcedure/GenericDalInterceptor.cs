@@ -319,7 +319,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
         /// <returns>If true, skip scalar parameter created</returns>
         private void CreateNewDataTableParameter(string parameterName, IDbCommand command, object value)
         {
-            if (value is ICollection)
+            if (value is ICollection || value is Array)
             {
                 var data = (ICollection)value;
                 var dataType = data.GetType().GenericTypeArguments[0];
@@ -347,8 +347,13 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
         {
             Type refString = Type.GetType("System.String&");
             // fill the parameters
-            foreach (var item in transit.Parameters.Where(a => a.Value.GetType().GenericTypeArguments.Length == 0))
+            foreach (var item in transit.Parameters)
             {
+                if ((item.Value != null && item.Value is ICollection) || typeof(ICollection).IsAssignableFrom(item.Key.ParameterType))
+                {
+                    continue;
+                }
+                //.Where(a => a.Value.GetType().GenericTypeArguments.Length == 0)
                 ParameterInfo pi = item.Key;
                 ParameterDirection direction = ParameterDirection.Input;
                 if (pi.IsOut && pi.IsIn == false)
@@ -360,6 +365,11 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
 
                 if (type.IsClass && type.In(typeof(string), refString) == false)
                 {
+                    //remove by ref value from type
+                    if (type.Name.EndsWith("&"))
+                    {
+                        type = type.Assembly.GetType(type.FullName.Replace("&", ""));
+                    }
                     CreateRefScalarVariable(transit, item.Key.Position, type, item.Value, command, direction);
                 }
                 else
@@ -606,11 +616,6 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
 
             public void WriteBack(object[] parameters)
             {
-                if (Direction == ParameterDirection.Input || Direction == ParameterDirection.ReturnValue)
-                {
-                    return;
-                }
-
                 if (Value == null && Direction == ParameterDirection.Output)
                 {
                     Value = Accessor.CreateNew();

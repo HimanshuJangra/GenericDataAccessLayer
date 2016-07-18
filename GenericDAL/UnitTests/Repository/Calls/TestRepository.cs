@@ -15,6 +15,8 @@ namespace UnitTests.Repository.Calls
         User[] UpdateUseArrayReturn(List<User> data);
         IEnumerable<User> Read();
         void Delete(IEnumerable<User> data);
+        void Get(out User data);
+        void Update(ref User data);
 
         #endregion
     }

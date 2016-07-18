@@ -41,7 +41,7 @@ namespace UnitTests
         {
             var w = Stopwatch.StartNew();
             var generator = new Castle.DynamicProxy.ProxyGenerator();
-            var proxy = generator.CreateInterfaceProxyWithoutTarget<Repository.StoredProcedure.ExecutionTest>(new Proxy());
+            var proxy = generator.CreateInterfaceProxyWithoutTarget<Repository.Calls.TestRepository>(new Proxy());
             w.Stop();
             Console.WriteLine(w.Elapsed);
             w.Reset();
@@ -49,7 +49,7 @@ namespace UnitTests
             w.Start();
             while (true)
             {
-                proxy.UpdateSomeEntity(1, "sds");
+                proxy.Read();
                 if (counter-- == 0)
                 {
                     break;
@@ -63,7 +63,7 @@ namespace UnitTests
         public void MyTestMethod2()
         {
             var w = Stopwatch.StartNew();
-            var proxy = new ProxyFactory().CreateProxy<Repository.StoredProcedure.ExecutionTest>(Type.EmptyTypes, new NProxy());
+            var proxy = new ProxyFactory().CreateProxy<Repository.Calls.TestRepository>(Type.EmptyTypes, new NProxy());
             w.Stop();
             Console.WriteLine(w.Elapsed);
             w.Reset();
@@ -71,7 +71,7 @@ namespace UnitTests
             w.Start();
             while (true)
             {
-                proxy.UpdateSomeEntity(1, "sds");
+                proxy.Read();
                 if (counter-- == 0)
                 {
                     break;
