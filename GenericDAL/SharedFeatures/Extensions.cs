@@ -48,24 +48,6 @@ namespace GenericDataAccessLayer.Core
 
             return parameter;
         }
-        /// <summary>
-        /// Get Value from Reader and convert it into Type given by generic parameter
-        /// </summary>
-        /// <typeparam name="T">Type of the Column value</typeparam>
-        /// <param name="reader">Reader that we use to retrieve data</param>
-        /// <param name="ordinal">Column Number</param>
-        /// <param name="defaultValue">default Value if reader value is DbNull</param>
-        /// <returns>Column value</returns>
-        public static T ReadObject<T>(this IDataRecord reader, int ordinal, T defaultValue = default(T))
-        {
-            T result = defaultValue;
-            object value = reader.ReadObject(ordinal);
-            if (value != null)
-            {
-                result = (T)value;
-            }
-            return result;
-        }
 
         public static object ReadObject(this IDataRecord reader, int ordinal)
         {
@@ -84,42 +66,6 @@ namespace GenericDataAccessLayer.Core
 
             return result;
         }
-
-        /// <summary>
-        /// Get Value from Reader and convert it into Type given by generic parameter using column name
-        /// </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <param name="reader"></param>
-        /// <param name="columnName"></param>
-        /// <param name="defaultValue"></param>
-        /// <returns></returns>
-        public static T ReadObject<T>(this IDataRecord reader, String columnName, T defaultValue = default(T))
-        {
-            int ordinal = reader.GetOrdinal(columnName);
-            return reader.ReadObject(ordinal, defaultValue);
-        }
-
-        public static DataRow AddCellValue(this DataRow row, String name, Object value)
-        {
-            row[name] = value ?? DBNull.Value;
-            return row;
-        }
-
-        public static DataColumn AddColumn<T>(this DataTable table, String name)
-        {
-            var column = table.Columns.Add(name, typeof(T));
-            column.AllowDBNull = true;
-
-            return column;
-        }
-
-        public static void IntoList<T>(this IDbCommand command, Func<IDataRecord, T> getter, List<T> result)
-        {
-            using (var reader = command.ExecuteReader())
-            {
-                result.AddRange(reader.ToRecord().Select(getter));
-            }
-        }
         /// <summary>
         /// Create DbEnumerator and returns IDataRecord for each iteration.
         /// DbEnumerator is a bit faster then IDataReader... using cache for column names
@@ -132,56 +78,6 @@ namespace GenericDataAccessLayer.Core
             while (enumerator.MoveNext())
             {
                 yield return (IDataRecord)enumerator.Current;
-            }
-        }
-
-        public static int GetFirstRow<T>(this IDbCommand command, Action<T, IDataRecord> getter, T data)
-        {
-            int result;
-            using (var reader = command.ExecuteReader())
-            {
-                foreach (var record in reader.ToRecord())
-                {
-                    getter(data, record);
-                }
-                result = reader.RecordsAffected;
-            }
-            return result;
-        }
-
-        public static T GetFirstRow<T>(this IDbCommand command, Func<IDataRecord, T> getter)
-        {
-            T result = default(T);
-            using (var reader = command.ExecuteReader())
-            {
-                foreach (var record in reader.ToRecord())
-                {
-                    result = getter(record);
-                }
-            }
-            return result;
-        }
-
-        public static void Update<T>(this IDbCommand command, T item, Action<T, IDataRecord> getter)
-        {
-            using (var reader = command.ExecuteReader())
-            {
-                foreach (var record in reader.ToRecord())
-                {
-                    getter(item, record);
-                }
-            }
-        }
-
-        public static void Update<T>(this IDbCommand command, List<T> items, Action<T, IDataRecord> getter, String indexName)
-        {
-            using (var reader = command.ExecuteReader())
-            {
-                foreach (var record in reader.ToRecord())
-                {
-                    int index = record.ReadObject<int>(indexName);
-                    getter(items[index], record);
-                }
             }
         }
     }

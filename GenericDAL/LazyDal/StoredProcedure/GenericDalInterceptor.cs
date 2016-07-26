@@ -161,7 +161,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
 
             transit.CommandText = methodInfo.Name;
             var retType = transit.ReturnType;
-            
+
             if (retType.In(typeof(void), typeof(string)) == false)
             {
                 if (retType.IsArray || typeof(IEnumerable).IsAssignableFrom(retType))
@@ -213,7 +213,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
             }
             else if (methodInfo.Name == $"set_{nameof(IRepository.TvpNameConvension)}")
             {
-                _tvpNameConvention = parameters[0]?.ToString();
+                _tvpNameConvention = parameters[0].ToString();
             }
             else if (methodInfo.Name == $"get_{nameof(IRepository.TvpNameConvension)}")
             {
@@ -305,7 +305,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
         {
             if (_queryTime?.IsRunning == true)
             {
-                _queryTime?.Stop();
+                _queryTime.Stop();
             }
             return _operations.HasFlag(RepositoryOperations.IgnoreException);
         }
@@ -319,10 +319,11 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
         /// <returns>If true, skip scalar parameter created</returns>
         private void CreateNewDataTableParameter(string parameterName, IDbCommand command, object value)
         {
-            if (value is ICollection || value is Array)
+            if (value is ICollection)
             {
                 var data = (ICollection)value;
-                var dataType = data.GetType().GenericTypeArguments[0];
+                var type = data.GetType();
+                var dataType = type.IsArray ? type.GetElementType() : type.GenericTypeArguments[0];
 
                 var table = new DataTable(string.Format(_tvpNameConvention, dataType.Name));
 
@@ -349,7 +350,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
             // fill the parameters
             foreach (var item in transit.Parameters)
             {
-                if ((item.Value != null && item.Value is ICollection) || typeof(ICollection).IsAssignableFrom(item.Key.ParameterType))
+                if ((item.Value is ICollection) || typeof(ICollection).IsAssignableFrom(item.Key.ParameterType))
                 {
                     continue;
                 }
@@ -419,14 +420,13 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
         {
             // do not allow cartesian product
             var collection = transit.Parameters.Where(a => a.Value is ICollection).Select(a => new KeyValuePair<ParameterInfo, ICollection>(a.Key, (ICollection)a.Value)).ToList();
-            if (_operations.HasFlag(RepositoryOperations.UseTableValuedParameter) == false &&
-                collection.Count > 1 &&
-                (transit.ReturnObject is IList) == false)
+            if (_operations.HasFlag(RepositoryOperations.UseTableValuedParameter) == false)
             {
-                throw new NotSupportedException(nameof(Resources.DA004));
+                if (collection.Count > 1)
+                    throw new NotSupportedException(nameof(Resources.DA004));
             }
             PrepareExecute(transit, command);
-            bool isArrayOrEnumerable = transit.ReturnType.IsArray || typeof(IEnumerable).IsAssignableFrom(transit.ReturnType);
+            bool isArrayOrEnumerable = transit.ReturnType.IsArray || (typeof(IEnumerable).IsAssignableFrom(transit.ReturnType) && transit.ReturnType != typeof(string));
             // if transit is List execute reader
             if (transit.ReturnObject is IList || isArrayOrEnumerable)
             {
@@ -466,7 +466,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
                 }
             }
             // execute scalar. Can be Struct too
-            else if (transit.ReturnObject != null || transit.ReturnType == typeof(string))
+            else if (transit.ReturnType != typeof(void))
             {
                 ExecuteWithSingleReturnValue(transit, command);
             }
@@ -517,7 +517,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
                 var accessor = TypeAccessor.Create(transit.ReturnType.GenericTypeArguments[0]);
                 ExecuteReaderToList(items, accessor, command);
             }
-            else if (transit.ReturnObject != null)
+            else if (transit.ReturnType != typeof(void))
             {
                 // execute scalar. Can be Struct too
                 ExecuteWithSingleReturnValue(transit, command);
