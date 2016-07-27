@@ -2,6 +2,7 @@
 using GenericDataAccessLayer.Core;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Ploeh.AutoFixture;
+using NSubstitute;
 
 namespace UnitTests.Extension
 {
@@ -21,6 +22,16 @@ namespace UnitTests.Extension
                 var type = _fixture.Create<System.Data.DbType>();
                 command.AddParameter(name, value, direction, type);
             }
+        }
+
+        [TestMethod]
+        [ExpectedException(typeof(ArgumentOutOfRangeException))]
+        public void DataReaderTest()
+        {
+            int ordinal = _fixture.Create<int>();
+            var reader = Substitute.For<System.Data.IDataReader>();
+            reader.When(a => a.IsDBNull(ordinal)).Throw<Exception>();
+            reader.ReadObject(ordinal);
         }
     }
 }
