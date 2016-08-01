@@ -147,4 +147,7 @@
   <data name="GE002" xml:space="preserve">
     <value>Could not load instance for {0} data transfer object</value>
   </data>
+  <data name="GE003" xml:space="preserve">
+    <value>Insufficient number of parameter has been provided</value>
+  </data>
 </root>

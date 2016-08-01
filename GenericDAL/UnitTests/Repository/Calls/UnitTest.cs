@@ -6,7 +6,9 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using NSubstitute;
 using Ploeh.AutoFixture;
 using System.Linq;
+using System.Reflection;
 using GenericDataAccessLayer.LazyDal;
+using GenericDataAccessLayer.LazyDal.Attributes;
 
 namespace UnitTests.Repository.Calls
 {
@@ -74,10 +76,10 @@ namespace UnitTests.Repository.Calls
             return reader;
         }
 
-        private void DefaultAsserts(IDbConnection connection, IDbCommand command)
+        private void DefaultAsserts(IDbConnection connection, IDbCommand command, int called)
         {
-            connection.Received(1).Open();
-            connection.Received(1).CreateCommand();
+            connection.Received(called).Open();
+            connection.Received(called).CreateCommand();
         }
 
         private void ExecuteReaderAssert(IDbCommand command, int times)
@@ -132,16 +134,32 @@ namespace UnitTests.Repository.Calls
             }
         }
 
-        private void GenericCreate(Action<TestRepository, IDbCommand> custom, RepositoryOperations options)
+        private void GenericCreate(Func<TestRepository, IDbCommand, int> custom, RepositoryOperations options)
         {
             TestRepository proxy;
             IDbConnection connection;
             IDbCommand command;
             InitializeProxy(out proxy, out connection, out command);
             proxy.Operations = options;
-            custom(proxy, command);
+            int called = custom(proxy, command);
 
-            DefaultAsserts(connection, command);
+            DefaultAsserts(connection, command, called);
+
+            if (options.HasFlag(RepositoryOperations.CacheExtendedDatabaseInformation))
+            {
+                Assert.IsTrue(proxy.ExtendedInformationCacheSize > 0);
+            }
+            else
+            {
+                Assert.AreEqual(0, proxy.ExtendedInformationCacheSize);
+            }
+
+            proxy.Dispose();
+
+            if (options.HasFlag(RepositoryOperations.CacheExtendedDatabaseInformation))
+            {
+                Assert.AreEqual(0, proxy.ExtendedInformationCacheSize);
+            }
 
             if (proxy.Operations.HasFlag(RepositoryOperations.LogQueryExecutionTime))
             {
@@ -154,7 +172,7 @@ namespace UnitTests.Repository.Calls
         }
 
         #region TestCore
-        private void CreateUserRef_Init(TestRepository proxy, IDbCommand command)
+        private int CreateUserRef_Init(TestRepository proxy, IDbCommand command)
         {
             var testUser = _fixture.Create<User>();
             testUser.IsActive = false;
@@ -173,8 +191,9 @@ namespace UnitTests.Repository.Calls
             Assert.AreNotEqual(oldId, testUser.Id);
             Assert.IsTrue(testUser.IsActive);
             ExecuteNonQueryAssert(command, 1);
+            return 1;
         }
-        private void CreateUseReturn_Init(TestRepository proxy, IDbCommand command)
+        private int CreateUseReturn_Init(TestRepository proxy, IDbCommand command)
         {
             var testUser = _fixture.Create<User>();
             testUser.IsActive = false;
@@ -191,10 +210,11 @@ namespace UnitTests.Repository.Calls
             Assert.IsTrue(result.IsActive);
             reader.Received(1).Read();
             ExecuteReaderAssert(command, 1);
+            return 1;
         }
 
         private bool _asList = true;
-        private void UpdateUseArrayReturn_Init(TestRepository proxy, IDbCommand command)
+        private int UpdateUseArrayReturn_Init(TestRepository proxy, IDbCommand command)
         {
             var users = _fixture.CreateMany<User>().ToArray();
             foreach (var item in users)
@@ -217,8 +237,9 @@ namespace UnitTests.Repository.Calls
             Assert.IsFalse(result.Any(a => a.IsActive == false));
             var readerReceived = proxy.Operations.HasFlag(RepositoryOperations.UseTableValuedParameter) ? 1 : users.Length;
             ExecuteReaderAssert(command, readerReceived);
+            return 1;
         }
-        private void ReadEnumerable_Init(TestRepository proxy, IDbCommand command)
+        private int ReadEnumerable_Init(TestRepository proxy, IDbCommand command)
         {
             var users = _fixture.CreateMany<User>(1000).ToArray();
             var reader = InitializeReaderForUser(command, users);
@@ -226,8 +247,9 @@ namespace UnitTests.Repository.Calls
             Assert.AreEqual(users.Length, result.Count());
             ExecuteReaderAssert(command, 1);
             reader.Received(users.Length + 1).Read();
+            return 1;
         }
-        private void Get_Init(TestRepository proxy, IDbCommand command)
+        private int Get_Init(TestRepository proxy, IDbCommand command)
         {
             User user = null;
             var resultUser = _fixture.Create<User>();
@@ -245,8 +267,9 @@ namespace UnitTests.Repository.Calls
                 Assert.AreEqual(accessor[resultUser, item.Name], accessor[user, item.Name]);
             }
             ExecuteNonQueryAssert(command, 1);
+            return 1;
         }
-        private void Update_Init(TestRepository proxy, IDbCommand command)
+        private int Update_Init(TestRepository proxy, IDbCommand command)
         {
             var resultUser = _fixture.Create<User>();
             User user = new User { Id = resultUser.Id };
@@ -261,23 +284,27 @@ namespace UnitTests.Repository.Calls
             proxy.Update(ref resultUser);
             Assert.AreEqual(user.Id, resultUser.Id);
             ExecuteNonQueryAssert(command, 1);
+            return 1;
         }
-        private void IncorrectCallFirstTrial_Init(TestRepository proxy, IDbCommand command)
+        private int IncorrectCallFirstTrial_Init(TestRepository proxy, IDbCommand command)
         {
             var resultUser = _fixture.CreateMany<String>().ToList();
             proxy.IncorrectCallFirstTrial(resultUser);
+            return 1;
         }
-        private void IncorrectCallSecondTrial_Init(TestRepository proxy, IDbCommand command)
+        private int IncorrectCallSecondTrial_Init(TestRepository proxy, IDbCommand command)
         {
             var resultUser = _fixture.CreateMany<DateTime>().ToList();
             proxy.IncorrectCallSecondTrial(resultUser);
+            return 1;
         }
-        private void OnExecutionException_Init(TestRepository proxy, IDbCommand command)
+        private int OnExecutionException_Init(TestRepository proxy, IDbCommand command)
         {
             command.When(a => a.ExecuteNonQuery()).Throw(new Exception());
             proxy.OnExecutionException();
+            return 1;
         }
-        private void MultiItems_Init(TestRepository proxy, IDbCommand command)
+        private int MultiItems_Init(TestRepository proxy, IDbCommand command)
         {
             var users = _fixture.CreateMany<User>().ToArray();
             InitializeReaderForUser(command, users);
@@ -298,6 +325,7 @@ namespace UnitTests.Repository.Calls
             {
                 ExecuteReaderAssert(command, users.Length);
             }
+            return 1;
         }
         #endregion
 
@@ -486,6 +514,7 @@ namespace UnitTests.Repository.Calls
             GenericCreate((proxy, command) =>
             {
                 proxy.MultiItems(new List<int> { 1, 2, 3 }, "test");
+                return 1;
             }, RepositoryOperations.None);
         }
 
@@ -496,6 +525,7 @@ namespace UnitTests.Repository.Calls
             GenericCreate((proxy, command) =>
             {
                 proxy.MultiItems(new List<User>(), new List<User>());
+                return 1;
             }, RepositoryOperations.None);
         }
 
@@ -522,6 +552,7 @@ namespace UnitTests.Repository.Calls
                 var result = proxy.MultiItems(users, data);
                 Assert.AreEqual(users.Length, result.Count);
                 ExecuteReaderAssert(command, 1);
+                return 1;
             }, RepositoryOperations.All);
         }
 
@@ -537,6 +568,7 @@ namespace UnitTests.Repository.Calls
 
                 Assert.AreEqual(expectedValue, result);
                 command.Received(1).ExecuteScalar();
+                return 1;
             }, RepositoryOperations.None);
         }
 
@@ -552,6 +584,7 @@ namespace UnitTests.Repository.Calls
 
                 Assert.AreEqual(expectedValue, result);
                 command.Received(1).ExecuteScalar();
+                return 1;
             }, RepositoryOperations.All);
         }
 
@@ -567,6 +600,7 @@ namespace UnitTests.Repository.Calls
 
                 Assert.AreEqual(expectedValue, result);
                 command.Received(1).ExecuteScalar();
+                return 1;
             }, RepositoryOperations.None);
         }
 
@@ -580,6 +614,7 @@ namespace UnitTests.Repository.Calls
                 proxy.DoSomething(data);
 
                 ExecuteNonQueryAssert(command, data.Count);
+                return 1;
             }, RepositoryOperations.None);
         }
 
@@ -593,6 +628,7 @@ namespace UnitTests.Repository.Calls
                 proxy.DoSomething(data);
 
                 ExecuteNonQueryAssert(command, data.Count);
+                return 1;
             }, RepositoryOperations.None);
         }
 
@@ -606,6 +642,7 @@ namespace UnitTests.Repository.Calls
                 proxy.DoSomething(data);
 
                 ExecuteNonQueryAssert(command, 1);
+                return 1;
             }, RepositoryOperations.All);
         }
 
@@ -626,6 +663,55 @@ namespace UnitTests.Repository.Calls
                 proxy.DoSomethingEGain(ref refValue, out outParam);
                 Assert.AreEqual(expectedOut, outParam);
                 Assert.AreEqual(refValue, expectedRef);
+                return 1;
+            }, RepositoryOperations.None);
+        }
+
+        [TestMethod]
+        public void Test_FullOptions_Test()
+        {
+            GenericCreate((proxy, command) =>
+            {
+                var mi = typeof(TestRepository).GetMethod(nameof(TestRepository.Test)).GetCustomAttribute<ExtendedDatabaseInformationAttribute>();
+                proxy.Test();
+                Assert.AreEqual($"{mi.Database}.{mi.Schema}.{mi.CustomProcedureName ?? nameof(TestRepository.Test)}", command.CommandText);
+                return 1;
+            }, RepositoryOperations.All);
+        }
+
+        [TestMethod]
+        public void Test2_FullOptions_Test()
+        {
+            GenericCreate((proxy, command) =>
+            {
+                var mi = typeof(TestRepository).GetMethod(nameof(TestRepository.Test2)).GetCustomAttribute<ExtendedDatabaseInformationAttribute>();
+                proxy.Test2();
+                Assert.AreEqual(mi.CustomProcedureName, command.CommandText);
+                return 1;
+            }, RepositoryOperations.All);
+        }
+
+        [TestMethod]
+        public void Test3_FullOptions_Test()
+        {
+            GenericCreate((proxy, command) =>
+            {
+                var mi = typeof(TestRepository).GetMethod(nameof(TestRepository.Test3)).GetCustomAttribute<ExtendedDatabaseInformationAttribute>();
+                proxy.Test3();
+                proxy.Test3();
+                Assert.AreEqual($"{mi.Schema}.{nameof(TestRepository.Test3)}", command.CommandText);
+                return 2;
+            }, RepositoryOperations.All);
+        }
+
+        [TestMethod]
+        [ExpectedException(typeof(ArgumentException))]
+        public void Test4_NoOptions_Test()
+        {
+            GenericCreate((proxy, command) =>
+            {
+                proxy.Test4();
+                return 1;
             }, RepositoryOperations.None);
         }
     }

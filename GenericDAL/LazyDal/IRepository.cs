@@ -41,6 +41,10 @@ namespace GenericDataAccessLayer.LazyDal
         /// Name Convension of the TVP. Default: {0}TVP
         /// </summary>
         string TvpNameConvension { get; set; }
+        /// <summary>
+        /// Amount of items cached
+        /// </summary>
+        int ExtendedInformationCacheSize { get;}
     }
     /// <summary>
     /// Additional operations for Repository
@@ -69,12 +73,16 @@ namespace GenericDataAccessLayer.LazyDal
         /// </summary>
         IgnoreException = 8,
         /// <summary>
+        /// if set, all extended informations will be cached
+        /// </summary>
+        CacheExtendedDatabaseInformation = 16,
+        /// <summary>
         /// Init only Log Execution watches
         /// </summary>
         TimeLoggerOnly = LogTotalExecutionTime | LogQueryExecutionTime,
         /// <summary>
         /// Include all operations
         /// </summary>
-        All = UseTableValuedParameter | LogTotalExecutionTime | LogQueryExecutionTime | IgnoreException
+        All = UseTableValuedParameter | LogTotalExecutionTime | LogQueryExecutionTime | IgnoreException | CacheExtendedDatabaseInformation
     }
 }

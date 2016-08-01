@@ -11,6 +11,7 @@ using SharedComponents;
 using GenericDataAccessLayer.Core;
 using System.Configuration;
 using System.Diagnostics;
+using GenericDataAccessLayer.LazyDal.Attributes;
 
 namespace GenericDataAccessLayer.LazyDal.StoredProcedure
 {
@@ -56,7 +57,15 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
             /// Reference to Return value
             /// </summary>
             public object ReturnObject;
+            /// <summary>
+            /// Keep extended infos in Transit Object
+            /// </summary>
+            public ExtendedDatabaseInformationAttribute ExtendedInformations;
         }
+        /// <summary>
+        /// Privent search for attribute each time to improve the performance
+        /// </summary>
+        private readonly Dictionary<string, ExtendedDatabaseInformationAttribute> _cache = new Dictionary<string, ExtendedDatabaseInformationAttribute>();
 
         /// <summary>
         /// Connection String setting name. Be aware that this parameter is global depends on instance.
@@ -159,7 +168,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
                 transit.Parameters.Add(item, parameters[index++]);
             }
 
-            transit.CommandText = methodInfo.Name;
+            transit.CommandText = transit.ExtendedInformations?.CreateCall(methodInfo.Name) ?? methodInfo.Name;
             var retType = transit.ReturnType;
 
             if (retType.In(typeof(void), typeof(string)) == false)
@@ -175,6 +184,30 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
             }
         }
 
+        private ExtendedDatabaseInformationAttribute GetExtendedInformation(MethodInfo mi)
+        {
+            ExtendedDatabaseInformationAttribute result = null;
+            if (_operations.HasFlag(RepositoryOperations.CacheExtendedDatabaseInformation))
+            {
+                string name = mi.Name;
+                if (_cache.ContainsKey(name) == false)
+                {
+                    result = mi.GetCustomAttribute<ExtendedDatabaseInformationAttribute>();
+                    _cache.Add(name, result);
+                }
+                else
+                {
+                    result = _cache[name];
+                }
+            }
+            else
+            {
+                result = mi.GetCustomAttribute<ExtendedDatabaseInformationAttribute>();
+            }
+
+            return result;
+        }
+
         /// <summary>Processes an invocation on a target.</summary>
         /// <param name="target">The target object.</param>
         /// <param name="methodInfo">The method information.</param>
@@ -185,6 +218,7 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
             Object result = null;
             if (methodInfo.Name == nameof(IRepository.Dispose))
             {
+                _cache.Clear();
                 _connection?.Dispose();
                 _connection = null;
             }
@@ -236,6 +270,10 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
             {
                 result = _operations;
             }
+            else if (methodInfo.Name == $"get_{nameof(IRepository.ExtendedInformationCacheSize)}")
+            {
+                result = _cache.Count;
+            }
             else
             {
                 InitWatches();
@@ -244,7 +282,10 @@ namespace GenericDataAccessLayer.LazyDal.StoredProcedure
                 _totalTime?.Start();
                 try
                 {
-                    var transit = new TransitObject();
+                    var transit = new TransitObject
+                    {
+                        ExtendedInformations = GetExtendedInformation(methodInfo)
+                    };
                     PrepareInitialization(transit, methodInfo, parameters);
                     var connection = Connection;
                     using (var command = connection.CreateCommand())

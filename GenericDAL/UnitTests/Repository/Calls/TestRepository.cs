@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using GenericDataAccessLayer.LazyDal;
+using GenericDataAccessLayer.LazyDal.Attributes;
 
 namespace UnitTests.Repository.Calls
 {
@@ -24,5 +25,13 @@ namespace UnitTests.Repository.Calls
         int GetSomeInt();
         void DoSomething(IEnumerable data);
         void DoSomethingEGain(ref string item1, out DateTime item2);
+        [ExtendedDatabaseInformation("test2", "mark2", CustomProcedureName = "Super")]
+        void Test();
+        [ExtendedDatabaseInformation(null, CustomProcedureName = "Test")]
+        void Test2();
+        [ExtendedDatabaseInformation("dbo2")]
+        void Test3();
+        [ExtendedDatabaseInformation(null)]
+        void Test4();
     }
 }

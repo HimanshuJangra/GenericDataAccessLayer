@@ -149,5 +149,14 @@ namespace L10n.Properties {
                 return ResourceManager.GetString("GE002", resourceCulture);
             }
         }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Insufficient number of parameter has been provided.
+        /// </summary>
+        public static string GE003 {
+            get {
+                return ResourceManager.GetString("GE003", resourceCulture);
+            }
+        }
     }
 }

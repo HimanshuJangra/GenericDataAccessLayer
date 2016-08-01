@@ -1,16 +1,19 @@
 ﻿using System;
+using System.Collections.Generic;
 using Castle.DynamicProxy;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System.Diagnostics;
 using System.Reflection;
+using GenericDataAccessLayer.LazyDal.Attributes;
 using NProxy.Core;
+using System.Linq;
 
 namespace UnitTests
 {
     [TestClass()]
     public class ProxyTest
     {
-        private int counts = int.MaxValue / 64;
+        private int counts = int.MaxValue / 2048;
         public class Proxy : IInterceptor
         {
             public void Intercept(IInvocation invocation)
@@ -67,6 +70,122 @@ namespace UnitTests
             while (true)
             {
                 proxy.Read();
+                if (counter-- == 0)
+                {
+                    break;
+                }
+            }
+            w.Stop();
+            Console.WriteLine(w.Elapsed);
+        }
+
+        private class HashAttributs
+        {
+            public string Name;
+            public ExtendedDatabaseInformationAttribute Attribute;
+
+            public override bool Equals(object obj)
+            {
+                return GetHashCode() == obj?.GetHashCode();
+            }
+
+            public override int GetHashCode()
+            {
+                return (Name ?? string.Empty).GetHashCode();
+            }
+        }
+        [TestMethod]
+        public void AttributeTest()
+        {
+
+            var methodInfo = typeof(Repository.Calls.TestRepository).GetMethod(nameof(Repository.Calls.TestRepository.Test));
+
+            var w = new Stopwatch();
+            int counter = counts;
+            w.Start();
+            while (true)
+            {
+                var item = methodInfo.GetCustomAttribute<ExtendedDatabaseInformationAttribute>();
+                string schema = item.Schema, database = item.Database;
+                if (counter-- == 0)
+                {
+                    break;
+                }
+            }
+            w.Stop();
+            Console.WriteLine(w.Elapsed);
+        }
+        [TestMethod]
+        public void AttributeTestHashed()
+        {
+
+            var methodInfo = typeof(Repository.Calls.TestRepository).GetMethod(nameof(Repository.Calls.TestRepository.Test));
+
+            var w = new Stopwatch();
+            int counter = counts;
+            var hash = new HashSet<HashAttributs>();
+            w.Start();
+            while (true)
+            {
+                var ha = hash.FirstOrDefault(a => a.Name == methodInfo.Name) ?? new HashAttributs { Name = methodInfo.Name };
+                if (ha.Attribute == null)
+                {
+                    var item = methodInfo.GetCustomAttribute<ExtendedDatabaseInformationAttribute>();
+                    ha.Attribute = item;
+                    hash.Add(ha);
+                }
+                string schema = ha.Attribute.Schema, database = ha.Attribute.Database;
+                if (counter-- == 0)
+                {
+                    break;
+                }
+            }
+            w.Stop();
+            Console.WriteLine(w.Elapsed);
+        }
+        [TestMethod]
+        public void AttributeTestDictionary()
+        {
+
+            var methodInfo = typeof(Repository.Calls.TestRepository).GetMethod(nameof(Repository.Calls.TestRepository.Test));
+
+            var w = new Stopwatch();
+            int counter = counts;
+            var dict = new Dictionary<string, ExtendedDatabaseInformationAttribute>();
+            w.Start();
+            while (true)
+            {
+                ExtendedDatabaseInformationAttribute item = null;
+                if (dict.ContainsKey(methodInfo.Name) == false)
+                {
+                    item = methodInfo.GetCustomAttribute<ExtendedDatabaseInformationAttribute>();
+                    dict.Add(methodInfo.Name, item);
+                }
+                else
+                {
+                    item = dict[methodInfo.Name];
+                }
+                string schema = item.Schema, database = item.Database;
+                if (counter-- == 0)
+                {
+                    break;
+                }
+            }
+            w.Stop();
+            Console.WriteLine(w.Elapsed);
+        }
+
+        [TestMethod]
+        public void AttributeTest2()
+        {
+
+            var methodInfo = typeof(Repository.Calls.TestRepository).GetMethod(nameof(Repository.Calls.TestRepository.Test));
+
+            var w = new Stopwatch();
+            int counter = counts;
+            w.Start();
+            while (true)
+            {
                 if (counter-- == 0)
                 {
                     break;

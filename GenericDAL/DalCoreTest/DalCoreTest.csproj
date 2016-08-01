@@ -57,6 +57,9 @@
     <Reference Include="System" />
     <Reference Include="System.Data" />
     <Reference Include="System.Data.Services.Client" />
+    <Reference Include="System.Runtime.Serialization" />
+    <Reference Include="System.Security" />
+    <Reference Include="System.Xml" />
   </ItemGroup>
   <Choose>
     <When Condition="('$(VisualStudioVersion)' == '10.0' or '$(VisualStudioVersion)' == '') and '$(TargetFrameworkVersion)' == 'v3.5'">
@@ -74,7 +77,17 @@
     <Compile Include="..\UnitTests\Extension\ExtensionTest.cs">
       <Link>Extension\ExtensionTest.cs</Link>
     </Compile>
+    <Compile Include="NewFolder1\TestEntity.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>TestEntity.edmx</DependentUpon>
+    </Compile>
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Edmx\TestEntity.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>TestEntity.edmx</DependentUpon>
+    </Compile>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\DalCore\DalCore.csproj">
@@ -91,7 +104,22 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
+    <None Include="App.Config" />
+    <EntityDeploy Include="NewFolder1\TestEntity.edmx">
+      <Generator>EntityModelCodeGenerator</Generator>
+      <LastGenOutput>TestEntity.Designer.cs</LastGenOutput>
+    </EntityDeploy>
+    <None Include="NewFolder1\TestEntity.edmx.diagram">
+      <DependentUpon>TestEntity.edmx</DependentUpon>
+    </None>
     <None Include="packages.config" />
+    <EntityDeploy Include="Edmx\TestEntity.edmx">
+      <Generator>EntityModelCodeGenerator</Generator>
+      <LastGenOutput>TestEntity.Designer.cs</LastGenOutput>
+    </EntityDeploy>
+    <None Include="Edmx\TestEntity.edmx.diagram">
+      <DependentUpon>TestEntity.edmx</DependentUpon>
+    </None>
   </ItemGroup>
   <Choose>
     <When Condition="'$(VisualStudioVersion)' == '10.0' And '$(IsCodedUITest)' == 'True'">
